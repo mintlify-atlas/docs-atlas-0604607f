@@ -1,0 +1,266 @@
+---
+title: Settings Persistence
+description: How Soul Link settings are saved and loaded, the JSON format, and when persistence occurs
+---
+
+Soul Link automatically persists settings to the world save directory, ensuring configuration survives server restarts.
+
+## Storage Location
+
+Settings are stored in the world save directory:
+
+```java
+private static Path getSettingsPath(MinecraftServer server) {
+    return server.getSavePath(WorldSavePath.ROOT).resolve(FILENAME);
+}
+```
+
+File path: `<world_save>/soullink_settings.json`
+
+## JSON Format
+
+Settings are stored as pretty-printed JSON:
+
+```json
+{
+  "damageLogEnabled": true,
+  "difficulty": "NORMAL",
+  "halfHeartMode": false,
+  "sharedPotions": false,
+  "sharedJumping": false,
+  "manhuntMode": false,
+  "syncedInventory": false
+}
+```
+
+<Info>
+The JSON format uses boxed types (Boolean, String) to distinguish between "not set" (null) and "explicitly false".
+</Info>
+
+## Loading Settings
+
+Settings are loaded when the server starts:
+
+```java
+public static void load(MinecraftServer server) {
+    Path path = getSettingsPath(server);
+    if (!Files.isRegularFile(path)) {
+        SoulLink.LOGGER.debug("No settings file at {}, using defaults", path);
+        return;
+    }
+    // ... load and parse JSON
+}
+```
+
+### When Settings Load
+
+Settings are loaded:
+- After `RunManager.init()` on `SERVER_STARTED` event
+- Only if the file exists and is valid
+- Missing file results in default values being used
+
+### Error Handling
+
+The loading process gracefully handles errors:
+
+**File Read Errors:**
+```java
+try {
+    String json = Files.readString(path, StandardCharsets.UTF_8);
+} catch (IOException e) {
+    SoulLink.LOGGER.warn("Could not read settings file {}: {}", path, e.getMessage());
+}
+```
+
+**Parse Errors:**
+```java
+catch (Exception e) {
+    SoulLink.LOGGER.warn("Could not parse settings file {}: {}", path, e.getMessage());
+}
+```
+
+<Note>
+If loading fails for any reason, the mod continues with default settings rather than crashing.
+</Note>
+
+## Saving Settings
+
+Settings are saved automatically in several scenarios:
+
+### When Settings Change
+
+After confirming changes in the GUI:
+
+```java
+Settings.getInstance().applySnapshot(settingsInventory.getPendingSnapshot());
+MinecraftServer server = RunManager.getInstance().getServer();
+if (server != null) {
+    SettingsPersistence.save(server);
+}
+```
+
+### On Server Shutdown
+
+As a safety net, settings are saved when the server stops during the `SERVER_STOPPING` event.
+
+### Save Implementation
+
+```java
+public static void save(MinecraftServer server) {
+    Path path = getSettingsPath(server);
+    try {
+        SettingsData data = fromSettings();
+        String json = GSON.toJson(data);
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, json, StandardCharsets.UTF_8);
+    } catch (IOException e) {
+        SoulLink.LOGGER.warn("Could not write settings file {}: {}", path, e.getMessage());
+    }
+}
+```
+
+## Pending Settings in Persistence
+
+When saving during an active run with pending changes, the pending values are saved instead of active values:
+
+```java
+private static SettingsData fromSettings() {
+    Settings s = Settings.getInstance();
+    SettingsData data = new SettingsData();
+    
+    // Use pending chaos snapshot if one exists
+    Settings.SettingsSnapshot chaos = s.getPendingSnapshotOrNull();
+    if (chaos == null) {
+        chaos = s.createSnapshot(); // Use current values
+    }
+    
+    data.difficulty = chaos.difficulty().name();
+    data.halfHeartMode = chaos.halfHeartMode();
+    // ...
+}
+```
+
+<Info>
+This ensures that if the server restarts during a run with pending changes, those changes are preserved and will apply on the next run start.
+</Info>
+
+### Exception: Combat Log
+
+The Combat Log setting applies immediately and is always saved from the current active value:
+
+```java
+data.damageLogEnabled = s.isDamageLogEnabled();
+```
+
+This is separate from the pending snapshot since it can be toggled during active runs.
+
+## Extensible Format
+
+The persistence format is designed to be extensible:
+
+### Adding New Settings
+
+To add a new setting:
+
+1. Add field to `SettingsData` class (use boxed type)
+2. Add to `applyToSettings()` method
+3. Add to `fromSettings()` method
+
+Example structure:
+
+```java
+private static class SettingsData {
+    Boolean damageLogEnabled;
+    String difficulty;
+    Boolean halfHeartMode;
+    // Add new settings here as boxed types
+}
+```
+
+### Backward Compatibility
+
+Missing keys are handled gracefully:
+
+```java
+if (data.halfHeartMode != null) {
+    s.setHalfHeartMode(data.halfHeartMode);
+}
+// If null (missing), keeps current default value
+```
+
+<Note>
+Using boxed types (Boolean, String) allows the system to distinguish between "key missing" (null) and "explicitly set to false".
+</Note>
+
+## Data Transfer Object Pattern
+
+The persistence system uses a DTO (Data Transfer Object) pattern:
+
+```java
+/**
+ * DTO for JSON. Use boxed types so we can omit null on save and detect missing keys on load.
+ * When adding a new setting: add the field here, in applyToSettings, and in fromSettings.
+ * Fields are read and written by Gson via reflection, so they appear unused to the compiler.
+ */
+private static class SettingsData {
+    Boolean damageLogEnabled;
+    String difficulty;
+    Boolean halfHeartMode;
+    Boolean sharedPotions;
+    Boolean sharedJumping;
+    Boolean manhuntMode;
+    Boolean syncedInventory;
+}
+```
+
+This approach:
+- Separates JSON structure from internal Settings class
+- Allows field names to differ from method names
+- Uses Gson reflection for automatic serialization
+- Supports null values for missing keys
+
+## Validation and Normalization
+
+### Difficulty Validation
+
+Invalid difficulty strings are ignored:
+
+```java
+try {
+    Difficulty d = Difficulty.valueOf(data.difficulty.toUpperCase());
+    s.setDifficulty(d);
+} catch (IllegalArgumentException ignored) {
+    // keep default
+}
+```
+
+### Peaceful Normalization
+
+If the JSON contains `"difficulty": "PEACEFUL"`, it's automatically normalized to Easy:
+
+```java
+public void setDifficulty(Difficulty difficulty) {
+    this.difficulty = (difficulty == Difficulty.PEACEFUL) ? Difficulty.EASY : difficulty;
+}
+```
+
+## Character Encoding
+
+All file operations use UTF-8 encoding:
+
+```java
+Files.readString(path, StandardCharsets.UTF_8);
+Files.writeString(path, json, StandardCharsets.UTF_8);
+```
+
+This ensures proper handling of special characters in future features.
+
+## Directory Creation
+
+The save operation ensures parent directories exist:
+
+```java
+Files.createDirectories(path.getParent());
+```
+
+This handles cases where the world save directory structure is incomplete.

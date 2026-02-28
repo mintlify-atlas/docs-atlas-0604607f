@@ -1,0 +1,125 @@
+---
+title: Installation
+description: Install Soul Link Speedrun on your Fabric server
+---
+
+## Requirements
+
+Before installing Soul Link Speedrun, make sure your server meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="Minecraft" icon="cube">
+    Version **1.21.11**
+  </Card>
+  <Card title="Java" icon="coffee">
+    Version **21** or higher
+  </Card>
+  <Card title="Fabric Loader" icon="layer-group">
+    Version **0.18.4** or higher
+  </Card>
+  <Card title="Fabric API" icon="puzzle-piece">
+    Any version compatible with 1.21.11
+  </Card>
+</CardGroup>
+
+<Note>
+  The **Fantasy** library (v0.7.0+) is bundled in the mod JAR and does not need to be installed separately.
+</Note>
+
+## Server installation
+
+<Steps>
+  <Step title="Download the mod">
+    Download Soul Link Speedrun from [Modrinth](https://modrinth.com/mod/soul-link-speedrun) or [CurseForge](https://www.curseforge.com/minecraft/mc-mods/soul-link-speedrun).
+  </Step>
+  
+  <Step title="Install Fabric Loader">
+    If you haven't already, install Fabric Loader on your server:
+    
+    1. Download the Fabric installer from [fabricmc.net](https://fabricmc.net/use/server/)
+    2. Run the installer and select your Minecraft version (1.21.11)
+    3. Choose your server directory
+    
+    <Warning>
+      Make sure you install Fabric Loader **0.18.4 or higher** as earlier versions are not compatible.
+    </Warning>
+  </Step>
+  
+  <Step title="Install Fabric API">
+    Download [Fabric API](https://modrinth.com/mod/fabric-api) for Minecraft 1.21.11 and place it in your server's `mods` folder.
+  </Step>
+  
+  <Step title="Install Soul Link Speedrun">
+    Place the Soul Link Speedrun JAR file in your server's `mods` folder.
+  </Step>
+  
+  <Step title="Start your server">
+    Start your Fabric server. You should see Soul Link Speedrun initialize in the console logs:
+    
+    ```log
+    [Server thread/INFO] (Soul Link) Initializing Soul Link Speedrun
+    [Server thread/INFO] (Soul Link) Soul Link Speedrun initialized successfully!
+    ```
+  </Step>
+</Steps>
+
+## Client installation
+
+<Note>
+  **Players do not need to install this mod on their client!** Soul Link Speedrun is entirely server-side.
+</Note>
+
+Players can connect to your server with a vanilla Minecraft 1.21.11 client. The mod works seamlessly without requiring any client-side installation.
+
+## Single-player installation
+
+If you want to run Soul Link Speedrun in single-player:
+
+<Steps>
+  <Step title="Install Fabric Loader">
+    Download and run the Fabric installer for Minecraft 1.21.11, selecting "Client" installation.
+  </Step>
+  
+  <Step title="Install dependencies">
+    Place both **Fabric API** and **Soul Link Speedrun** in your `.minecraft/mods` folder.
+  </Step>
+  
+  <Step title="Launch Minecraft">
+    Start Minecraft using the Fabric profile and create a new world or load an existing one.
+  </Step>
+</Steps>
+
+## Compatibility notes
+
+### Compatible with
+
+- **Essentials**: Only the server host needs to have it installed
+- **Most Fabric mods**: Generally compatible with other server-side mods
+- **Modpacks**: Feel free to include this mod in Modrinth/CurseForge modpacks without permission
+
+### Potential conflicts
+
+Soul Link Speedrun may conflict with mods that modify:
+
+- Health and hunger mechanics
+- Portal behavior and world generation
+- Death handling and respawn logic
+- Player synchronization systems
+
+<Warning>
+  If you experience issues with other mods, try running Soul Link Speedrun on a clean server with only Fabric API installed to isolate the problem.
+</Warning>
+
+## Verify installation
+
+To verify that Soul Link Speedrun is installed correctly:
+
+1. Join your server
+2. Run the `/runinfo` command
+3. You should see a message showing the current run state
+
+If the command works, you're ready to start your first speedrun!
+
+## Next steps
+
+Now that you have Soul Link Speedrun installed, head over to the [quick start guide](/quickstart) to launch your first cooperative speedrun.

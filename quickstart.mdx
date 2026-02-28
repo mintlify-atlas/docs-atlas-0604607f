@@ -1,80 +1,201 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick start
+description: Launch your first Soul Link speedrun in minutes
 ---
 
-## Get started in three steps
+## Your first speedrun
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through starting and completing your first Soul Link speedrun. The entire process takes just a few minutes!
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Start the server">
+    Launch your Fabric server with Soul Link Speedrun installed. Wait for the server to fully start up.
+    
+    <Note>
+      Make sure all players who want to participate are connected to the server before starting the run.
+    </Note>
+  </Step>
+  
+  <Step title="Begin a new run">
+    Any player can start a run using the `/start` command:
+    
+    ```bash
+    /start
+    ```
+    
+    The mod will:
+    - Generate fresh temporary worlds (Overworld, Nether, and End)
+    - Find a suitable spawn point
+    - Teleport all players to the spawn location
+    - Begin the timer
+    
+    <Info>
+      World generation typically takes 5-15 seconds. Players will be in spectator mode during this process.
+    </Info>
+  </Step>
+  
+  <Step title="Play as a team">
+    Once the run starts, you'll see a message: **"World ready! Good luck!"**
+    
+    All players now:
+    - Share the same health pool
+    - Share the same hunger and saturation
+    - Start in survival mode at the spawn point
+    - Can see the run timer in their action bar
+    
+    <Warning>
+      If **any player dies**, the run ends immediately for everyone. Stay safe!
+    </Warning>
+  </Step>
+  
+  <Step title="Defeat the Ender Dragon">
+    Work together to:
+    - Gather resources and craft equipment
+    - Find a stronghold and enter the End
+    - Defeat the Ender Dragon
+    
+    When the dragon is defeated, all players will see:
+    - A **"VICTORY"** title screen
+    - Your final completion time
+    - A message with your time in chat
+  </Step>
+  
+  <Step title="Start a new attempt">
+    After a victory or game over, you can immediately start a new run:
+    
+    - Click the clickable text in chat, or
+    - Run `/start` again
+    
+    The old temporary worlds are automatically deleted and new ones are generated.
+  </Step>
+</Steps>
+
+## Understanding the basics
+
+### Shared health and hunger
+
+When a run is active:
+
+- **Damage** taken by one player affects all players
+- **Healing** (potions, golden apples, natural regeneration) heals everyone
+- **Eating** food restores hunger for all players
+- **Saturation** is synchronized across the team
+
+### The timer
+
+The timer is displayed in your action bar and tracks:
+
+- **Phase 1**: Time in the Overworld and Nether
+- **Phase 2**: Time in the End (starts when the first player enters)
+- **Final time**: Total time from start to dragon defeat
+
+### World isolation
+
+Each run creates isolated temporary worlds:
+
+- Fresh terrain generation every time
+- Automatic cleanup when the run ends
+- No interference with your server's main world
+
+## Essential commands
+
+Here are the commands you'll use most often:
+
+<CodeGroup>
+```bash /start
+/start
+```
+
+```bash /reset
+/reset
+```
+
+```bash /runinfo
+/runinfo
+```
+</CodeGroup>
+
+| Command | Description | Permission |
+| :--- | :--- | :--- |
+| `/start` | Begin a new speedrun (generates fresh worlds) | All players |
+| `/reset` | Instantly restart the current run | All players |
+| `/runinfo` | Display current run state, timer, and shared stats | All players |
+| `/stoprun` | Stop the current run (admin command) | Operator |
+
+<Tip>
+  Use `/runinfo` to check your current health, hunger, game state, and elapsed time at any point during the run.
+</Tip>
+
+## Customizing your experience
+
+Soul Link Speedrun includes powerful customization options accessible via the `/chaos` command:
+
+### Settings GUI
+
+Run `/chaos` to open the settings menu where you can toggle:
+
+- **Shared potions**: When enabled, drinking a potion applies the effect to all players (both positive and negative)
+- **Shared jumping**: Synchronizes jumps across all players
+- **Half-heart mode**: Limits max health to 0.5 hearts for an extreme challenge
+- **Difficulty**: Adjust the world difficulty (Peaceful, Easy, Normal, Hard)
+
+<Warning>
+  **Half-heart mode** is extremely difficult! One hit from almost any source will end the run.
+</Warning>
+
+## Late joiners
+
+Players who join mid-run are automatically handled:
+
+- They are teleported to the spawn point
+- Their health, hunger, and stats sync to the shared pool
+- A message confirms they've joined and synced
+
+## What happens when you die?
+
+If any player dies during a run:
+
+1. The timer stops immediately
+2. All players see a **"GAME OVER"** title with the final time
+3. Players are put into spectator mode
+4. A clickable message appears to start a new run
+5. Temporary worlds remain until a new run starts
+
+## Tips for success
 
 <AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
+  <Accordion title="Communication is key">
+    Use voice chat or text to coordinate. One player's mistake affects everyone, so stay in constant communication about dangers and resource needs.
   </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
+  
+  <Accordion title="Designate roles">
+    Consider splitting tasks:
+    - Some players gather food and resources
+    - Others focus on finding the stronghold
+    - Coordinate who crafts what equipment
   </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
+  
+  <Accordion title="Protect the riskiest player">
+    If someone is in a dangerous situation (like mining near lava), have others stay safe in case disaster strikes.
+  </Accordion>
+  
+  <Accordion title="Share food strategically">
+    Remember that eating benefits everyone. Don't waste food when hunger is already high.
+  </Accordion>
+  
+  <Accordion title="Practice makes perfect">
+    Your first few runs will likely end quickly. Learn from mistakes and develop strategies as a team.
   </Accordion>
 </AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you understand the basics:
 
-<CardGroup cols={2}>
+- Explore the full [commands reference](/commands/overview) to learn about all available commands
+- Check out the [mechanics guide](/mechanics/shared-vitality) to understand all shared mechanics
+- Experiment with different [game modes](/modes/overview) and [settings](/configuration/settings) to find your ideal challenge level
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Tip>
+  Start with default settings for your first few runs, then gradually enable harder options like shared potions or half-heart mode as your team improves.
+</Tip>

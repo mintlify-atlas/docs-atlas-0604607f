@@ -1,0 +1,241 @@
+---
+title: "World generation"
+description: "How temporary worlds are created, managed, and cleaned up using the Fantasy library"
+---
+
+Soul Link creates temporary dimensions for each speedrun using the [Fantasy](https://github.com/NucleoidMC/fantasy) library. These worlds are isolated from the server's persistent worlds and are deleted when the run ends.
+
+## Fantasy library integration
+
+Fantasy enables runtime world creation without modifying server configuration:
+
+```java WorldService.java:23
+private final Fantasy fantasy;
+
+public WorldService(MinecraftServer server) {
+    this.server = server;
+    this.fantasy = Fantasy.get(server);
+}
+```
+
+## World creation process
+
+When a run starts, three temporary dimensions are created:
+
+### 1. Generate seed
+
+```java WorldService.java:49
+public long createTemporaryWorlds() {
+    currentSeed = new Random().nextLong();
+    Difficulty serverDifficulty = Settings.getInstance().getDifficulty();
+    // ...
+}
+```
+
+A random seed ensures each run is unique. The same seed is used for all three dimensions.
+
+### 2. Create Overworld
+
+```java WorldService.java:56
+ServerWorld vanillaOverworld = server.getOverworld();
+RuntimeWorldConfig overworldConfig = new RuntimeWorldConfig()
+        .setDimensionType(DimensionTypes.OVERWORLD)
+        .setDifficulty(serverDifficulty)
+        .setGameRule(GameRules.ADVANCE_TIME, true)
+        .setSeed(currentSeed)
+        .setGenerator(vanillaOverworld.getChunkManager().getChunkGenerator());
+
+overworldHandle = fantasy.openTemporaryWorld(overworldConfig);
+overworldHandle.asWorld().setTimeOfDay(0);
+```
+
+<Note>
+The temporary world uses the same chunk generator as the vanilla overworld, ensuring identical terrain generation.
+</Note>
+
+### 3. Create Nether
+
+```java WorldService.java:69
+ServerWorld vanillaNether = server.getWorld(World.NETHER);
+if (vanillaNether != null) {
+    RuntimeWorldConfig netherConfig = new RuntimeWorldConfig()
+            .setDimensionType(DimensionTypes.THE_NETHER)
+            .setDifficulty(serverDifficulty)
+            .setSeed(currentSeed)
+            .setGenerator(vanillaNether.getChunkManager().getChunkGenerator());
+    
+    netherHandle = fantasy.openTemporaryWorld(netherConfig);
+}
+```
+
+### 4. Create End
+
+```java WorldService.java:82
+ServerWorld vanillaEnd = server.getWorld(World.END);
+if (vanillaEnd != null) {
+    RuntimeWorldConfig endConfig = new RuntimeWorldConfig()
+            .setDimensionType(DimensionTypes.THE_END)
+            .setDifficulty(serverDifficulty)
+            .setSeed(currentSeed)
+            .setGenerator(vanillaEnd.getChunkManager().getChunkGenerator());
+    
+    endHandle = fantasy.openTemporaryWorld(endConfig);
+}
+```
+
+## World handles
+
+Fantasy returns `RuntimeWorldHandle` objects that manage world lifecycle:
+
+```java WorldService.java:26
+private RuntimeWorldHandle overworldHandle;
+private RuntimeWorldHandle netherHandle;
+private RuntimeWorldHandle endHandle;
+```
+
+These handles provide access to:
+- The `ServerWorld` instance via `asWorld()`
+- The world's registry key via `getRegistryKey()`
+- Deletion functionality via `delete()`
+
+## World identification
+
+To check if a player or entity is in a temporary world:
+
+```java WorldService.java:152
+public boolean isTemporaryWorld(RegistryKey<World> worldKey) {
+    if (worldKey == null) return false;
+    
+    return worldKey.equals(getOverworldKey()) ||
+           worldKey.equals(getNetherKey()) ||
+           worldKey.equals(getEndKey());
+}
+```
+
+This is used extensively to:
+- Apply shared stats only in temporary worlds
+- Route portal travel correctly
+- Prevent cross-contamination with persistent worlds
+
+## Time advancement
+
+Temporary overworld time is manually advanced each tick:
+
+```java RunManager.java:230
+public void tick() {
+    if (gameState != RunState.RUNNING) return;
+    
+    ServerWorld tempOverworld = worldService.getOverworld();
+    if (tempOverworld != null) {
+        tempOverworld.setTimeOfDay(tempOverworld.getTimeOfDay() + 1);
+    }
+}
+```
+
+<Warning>
+Without manual time advancement, the temporary world would remain frozen at time 0.
+</Warning>
+
+## World cleanup
+
+Worlds are deleted in two phases to prevent player crashes:
+
+### Phase 1: Save as old
+
+Before creating new worlds, current worlds are marked for deletion:
+
+```java WorldService.java:101
+public void saveCurrentWorldsAsOld() {
+    oldOverworldHandle = overworldHandle;
+    oldNetherHandle = netherHandle;
+    oldEndHandle = endHandle;
+    overworldHandle = null;
+    netherHandle = null;
+    endHandle = null;
+}
+```
+
+### Phase 2: Delete old worlds
+
+After players are teleported to new worlds, old worlds are deleted:
+
+```java WorldService.java:124
+public void deleteOldWorlds() {
+    safeDeleteWorld(oldOverworldHandle, "old temporary overworld");
+    oldOverworldHandle = null;
+    
+    safeDeleteWorld(oldNetherHandle, "old temporary nether");
+    oldNetherHandle = null;
+    
+    safeDeleteWorld(oldEndHandle, "old temporary end");
+    oldEndHandle = null;
+}
+```
+
+### Safe deletion
+
+```java WorldService.java:110
+private void safeDeleteWorld(RuntimeWorldHandle handle, String worldName) {
+    if (handle != null) {
+        try {
+            handle.delete();
+            SoulLink.LOGGER.info("Deleted {}", worldName);
+        } catch (Exception e) {
+            SoulLink.LOGGER.error("Failed to delete {}", worldName, e);
+        }
+    }
+}
+```
+
+This prevents crashes from world deletion errors and logs failures for debugging.
+
+## Portal travel
+
+Portal destinations are mapped to temporary dimensions:
+
+```java WorldService.java:197
+public ServerWorld getLinkedNetherWorld(ServerWorld fromWorld) {
+    if (fromWorld == null) return null;
+    
+    RegistryKey<World> fromKey = fromWorld.getRegistryKey();
+    
+    if (fromKey.equals(getOverworldKey())) {
+        return getNether();
+    } else if (fromKey.equals(getNetherKey())) {
+        return getOverworld();
+    }
+    
+    return null;
+}
+```
+
+This ensures portal travel stays within the temporary world set.
+
+## Advantages of temporary worlds
+
+<CardGroup cols={2}>
+<Card title="No world pollution" icon="broom">
+The persistent server world stays clean. No leftover structures or terrain changes.
+</Card>
+
+<Card title="Fresh start" icon="seedling">
+Every run gets a brand new world with a unique seed.
+</Card>
+
+<Card title="Automatic cleanup" icon="trash">
+Worlds are deleted automatically when runs end. No manual maintenance required.
+</Card>
+
+<Card title="Isolation" icon="lock">
+Runs are completely isolated from each other and from persistent worlds.
+</Card>
+</CardGroup>
+
+## Performance considerations
+
+World creation is fast because:
+- Only metadata is created initially
+- Chunks generate on-demand as players explore
+- Fantasy handles all Minecraft internals correctly
+
+The spawn search (see [Timer system](/mechanics/timer-system)) is the longest part of world generation, not world creation itself.

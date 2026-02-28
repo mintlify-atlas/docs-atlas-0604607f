@@ -1,0 +1,108 @@
+---
+title: Half-Heart Mode
+description: Documentation for Half-Heart Mode where players have maximum health capped at 0.5 hearts
+---
+
+Half-Heart Mode (also called "Half Hearted Mode" in the GUI) is an extreme difficulty modifier that caps all players' maximum health to **1 health point (0.5 hearts)**. Any damage is instantly fatal.
+
+## Overview
+
+<Warning>
+This is the most dangerous game mode! Any source of damage will instantly kill all Soul Link players. Use extreme caution.
+</Warning>
+
+When Half-Heart Mode is enabled:
+- All players' maximum health is set to **1.0 HP** (0.5 hearts)
+- Any damage source instantly kills the player
+- Since health is shared in Soul Link, one death kills everyone
+- Healing items and effects have minimal impact
+
+## How to Enable
+
+1. Run `/chaos` to open the Chaos Modes GUI
+2. Click on the **Apple/Golden Apple** icon ("Half Hearted Mode")
+   - **Apple** = Disabled
+   - **Golden Apple** = Enabled
+3. Click the emerald "Confirm" button
+4. Start a new run with `/start`
+
+<Info>
+The setting displays as "Half Hearted Mode" in the GUI with a Light Purple color (SettingsGui.java:205-206).
+</Info>
+
+## Gameplay Impact
+
+### Instant Death Scenarios
+
+With only 0.5 hearts, the following are instantly fatal:
+- Any mob attack (even baby zombies)
+- Fall damage from any height over 1 block
+- Environmental damage (fire, lava, drowning)
+- Poison and Wither effects
+- Explosion damage
+- Thorns enchantment
+- Contact damage (cacti, sweet berry bushes)
+
+### Strategy Tips
+
+<Tip>
+**Recommended Strategies:**
+- Avoid ALL combat - use shields and blocking
+- Never sprint-jump (fall damage risk)
+- Stay away from cliffs and ledges  
+- Use water buckets for any descent
+- Avoid the Nether entirely (too many hazards)
+- One player should scout ahead while others wait in safety
+</Tip>
+
+### Dangerous Combinations
+
+Half-Heart Mode becomes nearly impossible when combined with:
+- **Shared Potions**: Poison/Wither from one player kills everyone
+- **Manhunt Mode**: Hunters have a massive advantage
+- **Hard Difficulty**: More mob damage and spawn rates
+
+## Implementation Details
+
+The Half-Heart Mode setting is managed by:
+- Setting flag: `Settings.isHalfHeartMode()` (Settings.java:58-64)
+- GUI toggle: Slot 12 in Chaos GUI (SettingsGui.java:37)
+- Icon: Apple (disabled) / Golden Apple (enabled)
+- Tooltip: "Players have only 1 health point!" (SettingsGui.java:222-224)
+
+### Code Reference
+
+The half-heart health cap is applied when the setting is enabled:
+```java
+// Settings.java:18
+private boolean halfHeartMode = false;
+
+// Settings.java:58-64
+public boolean isHalfHeartMode() {
+    return halfHeartMode;
+}
+
+public void setHalfHeartMode(boolean halfHeartMode) {
+    this.halfHeartMode = halfHeartMode;
+}
+```
+
+The GUI displays the current state (SettingsGui.java:202-231):
+- Enabled: Golden Apple with green "ENABLED" status
+- Disabled: Apple with red "DISABLED" status
+
+<Warning>
+**For Speedrunners:** This mode is only recommended for experienced players who have mastered Soul Link mechanics. First-time attempts rarely succeed.
+</Warning>
+
+## Related Modes
+
+<CardGroup cols={2}>
+  <Card title="Shared Potions" icon="flask" href="/modes/shared-potions">
+    Doubles the danger with shared poison effects
+  </Card>
+  
+  <Card title="Difficulty Settings" icon="gauge" href="/configuration/difficulty">
+    Adjust base difficulty level
+  </Card>
+</CardGroup>

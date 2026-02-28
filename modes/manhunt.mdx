@@ -1,0 +1,279 @@
+---
+title: Manhunt Mode
+description: Documentation for Manhunt mode featuring Runners vs Hunters gameplay with tracking compasses
+---
+
+Manhunt Mode transforms Soul Link into a competitive asymmetric game mode where **Runners** try to complete objectives while **Hunters** track and eliminate them using special tracking compasses.
+
+## Overview
+
+Manhunt Mode splits players into two teams:
+
+**Runners:**
+- Share Soul Link mechanics (health, hunger, stats)
+- Benefit from enabled chaos modes (Shared Potions, etc.)
+- Win by completing the run objective (defeating the Ender Dragon)
+- Get a 30-second head start at the beginning
+
+**Hunters:**
+- Use vanilla Minecraft mechanics (independent health/hunger)
+- Receive tracking compasses that point to Runners
+- Respawn after death and can continue hunting
+- Win by eliminating all Runners
+
+## How to Enable
+
+1. Run `/chaos` to open the Chaos Modes GUI
+2. Click on the **Ender Eye/Compass** icon ("Manhunt Mode")
+   - **Ender Eye** = Disabled
+   - **Compass** = Enabled (dark purple color)
+3. Click the emerald "Confirm" button
+4. Run `/start` to open the **Runner/Hunter selector GUI**
+5. Click player heads to toggle between Runner (green) and Hunter (red)
+6. Click the emerald to confirm roles and start the run
+
+<Info>
+Manhunt Mode requires at least 1 Runner and 1 Hunter to start. The role selector validates this before allowing the run to begin (SpeedrunnerSelectorGui.java:297-313).
+</Info>
+
+## Role Selection
+
+### Selector GUI
+
+The Runner/Hunter selector appears before starting any Manhunt run:
+
+**GUI Layout:**
+- Player heads fill the center area (up to 34 players supported)
+- Each head shows current role: Runner (green) or Hunter (red)
+- Click any head to toggle that player's role
+- Emerald at bottom shows role counts and starts the run
+- Barrier appears if role requirements aren't met
+
+**Role Display:**
+```
+Runner | PlayerName    (Green prefix)
+Hunter | PlayerName    (Red prefix)
+```
+
+### Default Roles
+
+When the selector opens:
+- All players default to **Runner** role (SpeedrunnerSelectorGui.java:54-56)
+- You must manually assign at least one Hunter
+- Roles are announced to all players when confirmed
+
+## Tracking Compasses
+
+### How Tracking Works
+
+Hunters receive special compasses that track Runners:
+
+1. Compasses automatically point to the currently tracked Runner
+2. Right-click the compass to cycle between Runners
+3. Tracking works across dimensions
+4. If the target is in another dimension, compass points to their last known location in your dimension
+
+<Tip>
+**Compass Features:**
+- Name: "Runner Tracker" (red text)
+- Tooltip: "Right Click to swap target"
+- Updates every 20 ticks (1 second)
+- Automatically given to Hunters at run start
+</Tip>
+
+### Cross-Dimension Tracking
+
+The tracking system handles dimension changes intelligently (CompassTrackingHandler.java:166-202):
+
+1. **Same Dimension**: Compass points directly to Runner's current position
+2. **Different Dimension**: Compass points to Runner's last known position in your dimension
+3. Position history is updated every second for each dimension
+4. Switching dimensions lets you follow their trail
+
+**Example:**
+- Runner enters the Nether
+- Your compass (Overworld) points to where they entered the portal
+- You can follow to the same portal location
+
+## Gameplay Mechanics
+
+### Runner Mechanics
+
+Runners function like normal Soul Link mode:
+- Shared health and hunger across all Runners
+- One Runner dies = all Runners die (game over)
+- Benefit from chaos modes (Shared Potions, Synced Inventory, etc.)
+- Get 30-second head start before Hunters can move
+- Normal respawn rules (respawn at world spawn)
+
+### Hunter Mechanics
+
+Hunters operate independently:
+- Vanilla health and hunger (not shared)
+- Unlimited respawns at world spawn
+- Not affected by chaos modes (Shared Potions, etc.)
+- Cannot damage each other (team damage prevention)
+- Receive tracking compass automatically
+
+<Info>
+Hunters bypass Soul Link mechanics entirely - they're treated as separate from the shared health/stats system (ManhuntManager.java:18, SharedInventoryHandler.java:55-58).
+</Info>
+
+### Head Start Timer
+
+The run begins with a 30-second head start for Runners:
+- Hunters spawn but cannot move/act immediately
+- Timer is displayed on action bar
+- Runners can gather resources, find shelter, or travel
+- After 30 seconds, Hunters are released and tracking begins
+
+## Teams and Display
+
+### Scoreboard Teams
+
+Manhunt creates colored name tags for identification (ManhuntManager.java:139-168):
+
+**Runner Team:**
+- Prefix: **Runner** | (Green, Bold)
+- Name color: White
+- Team name: `soullink_runners`
+
+**Hunter Team:**
+- Prefix: **Hunter** | (Red, Bold)  
+- Name color: White
+- Team name: `soullink_hunters`
+
+This makes it easy to identify roles from a distance.
+
+### Role Announcements
+
+When roles are confirmed, the system broadcasts (SpeedrunnerSelectorGui.java:339-372):
+```
+[Soul Link] Runners: Player1, Player2, Player3
+[Soul Link] Hunters: Player4, Player5
+```
+
+## Strategy Guide
+
+### Runner Strategies
+
+<Tip>
+**Survival Tips:**
+1. Use the 30-second head start to travel far from spawn
+2. Enter the Nether quickly (harder to track in different dimension)
+3. Build hidden bases instead of obvious structures
+4. Carry Ender Pearls for emergency escapes
+5. Split up temporarily to confuse tracking
+6. Use water bucket clutches and elytra for mobility
+</Tip>
+
+### Hunter Strategies
+
+<Tip>
+**Hunting Tips:**
+1. Coordinate with other Hunters to surround Runners
+2. Track different Runners to cover more ground
+3. Guard Nether portals and strongholds
+4. Use the tracking compass frequently to anticipate movement
+5. Bring respawn anchors to set spawn points in the Nether
+6. One Hunter guards the End portal while others pursue
+</Tip>
+
+## Advanced Mechanics
+
+### Target Cycling
+
+When right-clicking the compass (CompassTrackingHandler.java:113-164):
+
+1. System gets list of all online Runners
+2. Finds current target in the list
+3. Cycles to next Runner in order
+4. If current target is offline, selects first available Runner
+5. Displays "Now tracking: [Name]" message
+6. Updates compass lodestone tracking immediately
+
+### Position Tracking
+
+Runner positions are tracked per-dimension (CompassTrackingHandler.java:104-111):
+```java
+Map<UUID, Map<RegistryKey<World>, GlobalPos>> lastKnownPositions
+```
+
+- Each Runner has a map of dimension → last position
+- Updated every 20 ticks (1 second)
+- Used for cross-dimension tracking
+- Cleared when run ends
+
+### Action Bar Suppression
+
+To prevent timer spam from overwriting compass messages (CompassTrackingHandler.java:222-243):
+- Compass messages suppress timer display for 3 seconds (60 ticks)
+- Hunters see "Now tracking: [Name]" without interruption
+- Timer resumes after suppression period expires
+
+## Mode Interactions
+
+### Chaos Modes (Runners Only)
+
+When Manhunt is combined with other modes:
+
+| Mode | Runners | Hunters |
+|------|---------|----------|
+| Shared Potions | ✅ Share effects | ❌ Independent |
+| Synced Inventory | ✅ Share inventory | ❌ Independent |
+| Shared Jumping | ✅ Jump together | ❌ Independent |
+| Half-Heart | ✅ 0.5 hearts | ❌ Full health |
+
+<Warning>
+Runners with Half-Heart Mode enabled are at a severe disadvantage - Hunters have full health while Runners share 0.5 hearts!
+</Warning>
+
+## Implementation Details
+
+### Team Management
+
+The `ManhuntManager` class handles role tracking (ManhuntManager.java:18-233):
+```java
+private final Set<UUID> runners = new HashSet<>();
+private final Set<UUID> hunters = new HashSet<>();
+
+public boolean isSpeedrunner(ServerPlayerEntity player) {
+    return runners.contains(player.getUuid());
+}
+
+public boolean isHunter(ServerPlayerEntity player) {
+    return hunters.contains(player.getUuid());
+}
+```
+
+### Compass Registration
+
+Compass functionality is registered via Fabric API (CompassTrackingHandler.java:47-76):
+```java
+UseItemCallback.EVENT.register((player, world, hand) -> {
+    ItemStack stack = player.getStackInHand(hand);
+    if (!stack.isOf(Items.COMPASS)) return ActionResult.PASS;
+    
+    if (manhunt.isHunter(serverPlayer)) {
+        cycleTarget(serverPlayer, server);
+        return ActionResult.SUCCESS;
+    }
+    return ActionResult.PASS;
+});
+```
+
+## Related Modes
+
+<CardGroup cols={2}>
+  <Card title="Shared Potions" icon="flask" href="/modes/shared-potions">
+    Affects Runners only in Manhunt
+  </Card>
+  
+  <Card title="Synced Inventory" icon="box" href="/modes/synced-inventory">
+    Runners share inventory
+  </Card>
+  
+  <Card title="Game Modes Overview" icon="grid" href="/modes/overview">
+    All available game modes
+  </Card>
+</CardGroup>

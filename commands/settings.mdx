@@ -1,0 +1,135 @@
+---
+title: /settings Command
+description: Open the info settings GUI for combat log, bug reports, and commands
+---
+
+The `/settings` command opens an interactive GUI where players can access informational features, including combat logs, bug reporting, and command references.
+
+## Syntax
+
+```
+/settings
+```
+
+<ParamField path="No parameters" type="void">
+  This command takes no parameters and opens a GUI
+</ParamField>
+
+## Permissions
+
+- **Permission Level**: 0 (All players)
+- **Can be used by**: Players only (not console)
+- **Operator required**: No
+
+<Warning>
+  This command can only be executed by players. Console cannot use this command as it requires a GUI interface.
+</Warning>
+
+## Behavior
+
+When executed by a player:
+
+1. Opens the Settings Info GUI (`SettingsInfoGui`)
+2. Player can access:
+   - Combat log viewer
+   - Bug report system
+   - Command references
+   - Other informational features
+3. Provides read-only information and utilities
+
+## GUI Features
+
+The settings info GUI typically includes:
+
+- **Combat Log**: View recent combat events and deaths
+- **Bug Report**: Submit bug reports and feedback
+- **Commands**: Reference list of available commands
+- **Help**: Additional mod information and documentation
+
+<Info>
+  The exact features available in the GUI depend on your mod version. Check the GUI in-game for all available options.
+</Info>
+
+## Examples
+
+<CodeGroup>
+```minecraft Player Opens GUI
+/settings
+> [Opens SettingsInfoGui for the player]
+```
+
+```minecraft Console Attempt
+/settings
+> [Soul Link] Only players can use this command.
+```
+</CodeGroup>
+
+## Error Messages
+
+<ResponseField name="Only players can use this command" type="error">
+  Occurs when attempting to execute from console or non-player source.
+  
+  **Solution**: Execute the command as a player in-game.
+</ResponseField>
+
+## Common Use Cases
+
+### Combat Log Review
+- Check what caused a death
+- Review recent damage events
+- Analyze combat encounters
+
+### Bug Reporting
+- Report issues directly from the game
+- Provide feedback on mod features
+- Submit crash reports
+
+### Command Reference
+- Look up command syntax
+- Browse available commands
+- Learn command usage without leaving the game
+
+## Comparison with /chaos
+
+| Feature | /settings | /chaos |
+|---------|-----------|--------|
+| Purpose | Information & utilities | Challenge configuration |
+| Content | Combat log, bug reports, help | Difficulty, modifiers |
+| Modifies Run | No (read-only) | Yes (configures settings) |
+| GUI Type | SettingsInfoGui | SettingsGui |
+
+## Related Commands
+
+- `/chaos` - Opens challenge settings GUI (difficulty, modifiers)
+- `/runinfo` - Display current run information
+- `/start` - Start a new speedrun
+
+## Workflow Examples
+
+### Investigating a Death
+1. Execute `/settings`
+2. Navigate to Combat Log
+3. Review recent damage events
+4. Identify cause of death
+
+### Reporting a Bug
+1. Execute `/settings`
+2. Navigate to Bug Report
+3. Fill out bug details
+4. Submit report
+
+### Learning Commands
+1. Execute `/settings`
+2. Navigate to Commands section
+3. Browse available commands
+4. Reference syntax and usage
+
+## Source Code Reference
+
+Implemented in `CommandRegistry.java:165-173`
+
+Opens `SettingsInfoGui.open(player)` which provides the interactive information interface.
+
+<Tip>
+  Use `/settings` to quickly access combat logs and other useful information without leaving the game. This is especially helpful for debugging runs or reporting issues.
+</Tip>

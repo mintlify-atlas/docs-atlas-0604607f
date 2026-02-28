@@ -1,0 +1,283 @@
+---
+title: Synced Inventory Mode
+description: Documentation for Synced Inventory mode where all players share a single inventory
+---
+
+Synced Inventory Mode creates a shared inventory system where all Soul Link players use the **same inventory**. Any item changes made by one player instantly appear in everyone's inventory, creating unique logistical challenges and opportunities.
+
+## Overview
+
+When Synced Inventory Mode is enabled:
+- All players share the same 41 inventory slots (main, hotbar, armor, offhand)
+- Changes by one player instantly sync to all other players
+- Only one "master" inventory exists - preventing duplication exploits
+- In Manhunt mode, only Runners share inventory (Hunters are independent)
+
+<Info>
+Inventory size: **41 slots total** = 27 main + 9 hotbar + 4 armor + 1 offhand (SharedInventoryHandler.java:22-24)
+</Info>
+
+## How to Enable
+
+1. Run `/chaos` to open the Chaos Modes GUI
+2. Click on the **Chest/Copper Chest** icon ("Synced Inventory")
+   - **Chest** = Disabled
+   - **Copper Chest** = Enabled (dark aqua color)
+3. Click the emerald "Confirm" button  
+4. Start a new run with `/start`
+
+## Gameplay Impact
+
+### Shared Inventory Slots
+
+All inventory slots are synchronized:
+
+**Main Inventory (36 slots):**
+- 9 hotbar slots (bottom row)
+- 27 main inventory slots (3 rows above hotbar)
+
+**Equipment (5 slots):**
+- 4 armor slots (helmet, chestplate, leggings, boots)
+- 1 offhand slot
+
+**Total: 41 slots** shared across all players
+
+### Strategic Opportunities
+
+<Tip>
+**Advantages of Shared Inventory:**
+- Players can specialize in different tasks (one mines, one fights, one builds)
+- No need to transfer items between players
+- Shared ender chest effect without needing ender chests
+- Efficient resource pooling for speedruns
+- One player can organize while others gather
+</Tip>
+
+### Challenges and Risks
+
+<Warning>
+**Coordination Required:**
+- Players can accidentally take items others need
+- Inventory management requires constant communication
+- One player opening inventory blocks others from organizing
+- Armor swapping affects everyone simultaneously
+- Dropping items removes them for all players
+</Warning>
+
+## Advanced Mechanics
+
+### Master Inventory System
+
+The mod uses a single "master" inventory to prevent duplication (SharedInventoryHandler.java:26-33):
+
+```java
+private static final List<ItemStack> master = new ArrayList<>(41);
+```
+
+**How it works:**
+1. One player modifies their inventory
+2. Their inventory is copied to the master
+3. Master is applied to all other players
+4. All players see the same items instantly
+
+This ensures one source of truth and prevents item duplication exploits.
+
+### Synchronization Process
+
+When any player's inventory changes (SharedInventoryHandler.java:152-199):
+
+1. **Detection**: System detects inventory slot change via mixin
+2. **Copy Phase**: Changed player's full inventory copied to master
+3. **Apply Phase**: Master inventory applied to all other participating players
+4. **Sync Guard**: `isSyncing` flag prevents infinite loops during application
+
+```java
+public static void syncFromPlayerToAll(ServerPlayerEntity sourcePlayer) {
+    isSyncing = true;
+    try {
+        copyFromPlayer(sourcePlayer);  // Source → Master
+        
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            if (player != sourcePlayer && shouldParticipate(player)) {
+                applyToPlayer(player);  // Master → Others
+            }
+        }
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+### Late Joiners
+
+When a player joins mid-run (SharedInventoryHandler.java:201-229):
+- New player receives a copy of the current master inventory
+- They immediately sync with existing players
+- No items are duplicated during the sync
+
+## Participation Rules
+
+Not all players share inventory - only those participating in Soul Link (SharedInventoryHandler.java:39-60):
+
+**Included:**
+- All players in a standard Soul Link run
+- Runners in Manhunt mode
+
+**Excluded:**
+- Hunters in Manhunt mode (they have independent inventories)
+- Players not in the run
+- Spectators
+
+```java
+private static boolean shouldParticipate(ServerPlayerEntity player) {
+    if (!Settings.getInstance().isSyncedInventory()) return false;
+    if (!runManager.isPlayerInRun(player)) return false;
+    
+    // Exclude hunters in Manhunt
+    if (Settings.getInstance().isManhuntMode() 
+            && ManhuntManager.getInstance().isHunter(player)) {
+        return false;
+    }
+    return true;
+}
+```
+
+## Strategy Guide
+
+### Resource Management
+
+<Tip>
+**Organization Tips:**
+1. **Assign roles**: One player manages inventory organization
+2. **Hotbar protocol**: Designate which player controls each hotbar slot
+3. **Tool ownership**: Assign specific tools to specific players
+4. **Communication**: Use voice chat to coordinate item usage
+5. **Backup sets**: Keep duplicate tools in different slots
+</Tip>
+
+### Division of Labor
+
+**Specialized Roles Work Best:**
+
+**Player 1 - Miner:**
+- Focuses on gathering resources
+- Wears mining gear (efficiency, fortune)
+- Manages pickaxes and shovels
+
+**Player 2 - Fighter:**
+- Handles combat encounters
+- Equips combat armor and weapons
+- Manages food consumption
+
+**Player 3 - Builder:**
+- Places blocks and builds structures
+- Uses building blocks from shared inventory
+- Manages scaffolding and ladders
+
+**Player 4 - Organizer:**
+- Sorts items in inventory
+- Crafts needed items
+- Manages inventory space
+
+### Dangerous Situations
+
+<Warning>
+**Avoid These Mistakes:**
+- **Armor swapping during combat**: Changes everyone's protection
+- **Dropping important items**: Removes them for entire team
+- **Inventory clutter**: One player's mess affects everyone
+- **Using the last tool**: Breaks workflow for all players
+- **Food mismanagement**: Taking all food starves the team
+</Warning>
+
+## Combat Implications
+
+### Shared Equipment
+
+When fighting with synced inventory:
+- Changing armor affects everyone's defense rating
+- Swapping to sword removes tools from others
+- Using up durability impacts all players
+- Death drops affect the entire shared inventory
+
+**Combat Strategy:**
+1. Designate one "fighter" who controls combat gear
+2. Others stay in safe locations during fights
+3. Coordinate armor changes before engaging
+4. Keep backup weapons in multiple slots
+
+## Technical Details
+
+### Thread Safety
+
+The master inventory uses synchronization to prevent race conditions (SharedInventoryHandler.java:66-73):
+
+```java
+synchronized (master) {
+    for (int i = 0; i < size; i++) {
+        ItemStack stack = inv.getStack(i);
+        master.set(i, stack.isEmpty() ? ItemStack.EMPTY : stack.copy());
+    }
+}
+```
+
+### Error Handling
+
+The system gracefully handles errors (SharedInventoryHandler.java:101-105, 140-143):
+- Individual slot failures don't crash the sync
+- Invalid players are skipped
+- Removed/dead players are ignored
+- Errors are logged but don't stop the system
+
+### Reset Behavior
+
+When a run ends or a new run starts (SharedInventoryHandler.java:65-73):
+- Master inventory is cleared (all slots set to EMPTY)
+- Sync flag is reset
+- Players return to normal inventory mechanics
+
+## Manhunt Mode Interaction
+
+In Manhunt mode:
+- **Runners** share inventory with each other
+- **Hunters** each have independent inventories
+- Hunters can't see or access Runner inventory
+- This gives Runners coordination advantage but also coordination burden
+
+<Info>
+Hunters are excluded from sync via the `shouldParticipate` check (SharedInventoryHandler.java:55-58).
+</Info>
+
+## Known Limitations
+
+**Current Restrictions:**
+- Only works in the run world (temporary dimensions)
+- Doesn't sync to players outside the run
+- Inventory size fixed at 41 slots (can't expand)
+- No individual "personal" slots
+
+**Not Synced:**
+- Crafting table input slots
+- Furnace/chest contents
+- Ender chest contents (use for personal storage!)
+- Cursor item during GUI interactions
+
+<Tip>
+**Use ender chests for personal storage!** Ender chest contents are NOT synced, giving each player a private storage space.
+</Tip>
+
+## Related Modes
+
+<CardGroup cols={2}>
+  <Card title="Manhunt Mode" icon="crosshairs" href="/modes/manhunt">
+    Only Runners share inventory
+  </Card>
+  
+  <Card title="Shared Potions" icon="flask" href="/modes/shared-potions">
+    Another shared resource mode
+  </Card>
+  
+  <Card title="Game Modes Overview" icon="grid" href="/modes/overview">
+    All available game modes
+  </Card>
+</CardGroup>

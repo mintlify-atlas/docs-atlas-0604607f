@@ -1,0 +1,180 @@
+---
+title: "Shared vitality"
+description: "How shared health, hunger, and saturation synchronization works across all players"
+---
+
+All players in a Soul Link run share the same vital statistics: health, hunger, saturation, and absorption. When one player takes damage or heals, all players are affected.
+
+## Core synchronization
+
+The mod maintains master values for all vital stats that are synchronized to every player in real-time:
+
+- **Health**: 20 HP (10 hearts) or 1 HP in Half Heart Mode
+- **Hunger**: 20 food level (10 drumsticks)
+- **Saturation**: 5.0 starting value
+- **Absorption**: 0 starting value (from golden apples, etc.)
+
+These values are stored in `SharedStatsHandler.java` and synchronized across all players whenever any stat changes.
+
+<Note>
+In Manhunt mode, only Runners share vital stats. Hunters use vanilla mechanics.
+</Note>
+
+## Damage synchronization
+
+When a player takes damage, the system:
+
+1. Calculates damage after armor reduction
+2. Updates the shared health value
+3. Applies visual damage effects to all other players (red flash, screen shake, sound)
+4. Syncs the new health to everyone
+
+```java SharedStatsHandler.java:139
+public static void onPlayerHealthChanged(ServerPlayerEntity damagedPlayer, float newHealth,
+        DamageSource damageSource) {
+    // ...
+    float oldHealth = sharedHealth;
+    sharedHealth = MathHelper.clamp(newHealth, 0.0f, getMaxHealth());
+    
+    // Sync to all other players
+    for (ServerPlayerEntity player : players) {
+        player.damage(otherWorld, syncDamage, syncedDamageAmount);
+    }
+}
+```
+
+### Periodic damage normalization
+
+Poison and Wither effects are normalized by player count to prevent damage multiplication:
+
+<CodeGroup>
+```java Without normalization
+// 4 players poisoned = 4x damage speed!
+sharedHealth -= damageAmount * 4;
+```
+
+```java With normalization
+// Damage divided by player count
+float normalizedDamage = damageAmount / playerCount;
+damageAccumulator += normalizedDamage;
+
+if (damageAccumulator >= 0.5f) {
+    sharedHealth -= damageAccumulator;
+    damageAccumulator = 0.0f;
+}
+```
+</CodeGroup>
+
+The accumulator system ensures fractional damage adds up correctly over time, preventing precision loss.
+
+## Healing synchronization
+
+Healing works similarly to damage:
+
+- **Instant healing** (potions, golden apples): Applied immediately and synced
+- **Natural regeneration**: Normalized by player count using an accumulator
+- **Regeneration effect**: Normalized by player count to prevent Nx healing speed
+
+```java SharedStatsHandler.java:523
+public static void onNaturalRegen(ServerPlayerEntity regenPlayer, float healAmount) {
+    // Divide heal by player count to normalize
+    float normalizedHeal = healAmount / playerCount;
+    regenAccumulator += normalizedHeal;
+    
+    // Only apply when accumulated ≥ 0.5 HP
+    if (regenAccumulator >= 0.5f) {
+        sharedHealth = MathHelper.clamp(sharedHealth + healToApply, 0.0f, getMaxHealth());
+        // Sync to all players
+    }
+}
+```
+
+## Hunger and saturation
+
+Hunger and saturation synchronize whenever any player:
+
+- Eats food
+- Sprints (drains saturation/hunger)
+- Regenerates health (consumes saturation/hunger)
+- Takes starvation damage
+
+### Normalization
+
+Like health regeneration, hunger drain from natural regen is normalized:
+
+```java SharedStatsHandler.java:670
+public static void onNaturalHungerDrain(ServerPlayerEntity drainPlayer, int foodDrain,
+        float satDrain) {
+    float normalizedFoodDrain = (float) foodDrain / playerCount;
+    float normalizedSatDrain = satDrain / playerCount;
+    
+    hungerDrainAccumulator += normalizedFoodDrain;
+    saturationDrainAccumulator += normalizedSatDrain;
+}
+```
+
+This prevents N players from causing Nx hunger consumption during regeneration.
+
+## Absorption hearts
+
+Golden apples and other sources of absorption hearts are shared:
+
+```java SharedStatsHandler.java:464
+public static void onAbsorptionChanged(ServerPlayerEntity changedPlayer, float newAbsorption) {
+    sharedAbsorption = MathHelper.clamp(newAbsorption, 0.0f, 20.0f);
+    
+    // Sync to all other players
+    for (ServerPlayerEntity player : players) {
+        player.setAbsorptionAmount(sharedAbsorption);
+    }
+}
+```
+
+## Sync loop prevention
+
+All synchronization functions check an `isSyncing` flag to prevent infinite loops:
+
+```java SharedStatsHandler.java:104
+public static void syncPlayerToSharedStats(ServerPlayerEntity player) {
+    if (isSyncing) return;
+    
+    isSyncing = true;
+    try {
+        player.setHealth(sharedHealth);
+        player.setAbsorptionAmount(sharedAbsorption);
+        player.getHungerManager().setFoodLevel(sharedHunger);
+        player.getHungerManager().setSaturationLevel(sharedSaturation);
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+## Periodic sync check
+
+Every second (20 ticks), the system verifies all players are synchronized:
+
+```java SharedStatsHandler.java:758
+public static void tickSync(MinecraftServer server) {
+    if (server.getTicks() % 20 != 0) return;
+    
+    for (ServerPlayerEntity player : players) {
+        // Check for drift and correct
+        if (Math.abs(playerHealth - sharedHealth) > 0.5f) {
+            player.setHealth(sharedHealth);
+        }
+    }
+}
+```
+
+This catches any desynchronization from edge cases or timing issues.
+
+## Combat log
+
+When damage log is enabled in settings, players see notifications:
+
+<Info>
+**[SoulLink]** PlayerName has taken 2.5 ❤ damage.
+</Info>
+
+This helps teams coordinate and understand what caused health loss.

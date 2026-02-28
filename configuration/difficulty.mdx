@@ -1,0 +1,186 @@
+---
+title: Difficulty Settings
+description: How difficulty levels work in Soul Link, the cycling system, and how Peaceful difficulty is handled
+---
+
+Soul Link uses Minecraft's difficulty system with special handling to ensure balanced gameplay.
+
+## Available Difficulty Levels
+
+Soul Link supports three difficulty levels:
+
+- **Easy**: Standard easy gameplay (Wooden Sword icon)
+- **Normal**: Default balanced difficulty (Iron Sword icon)
+- **Hard**: Challenging gameplay (Diamond Sword icon)
+
+<Info>
+Peaceful difficulty is **not supported** in Soul Link. It is automatically normalized to Easy.
+</Info>
+
+## Peaceful Difficulty Handling
+
+When Peaceful difficulty is detected, it's automatically converted to Easy:
+
+```java
+public void setDifficulty(Difficulty difficulty) {
+    // Normalize Peaceful to Easy since mod doesn't support it
+    this.difficulty = (difficulty == Difficulty.PEACEFUL) ? Difficulty.EASY : difficulty;
+}
+```
+
+This normalization happens:
+- When loading settings from persistence
+- When the world difficulty is read to pre-fill the GUI
+- Anytime difficulty is set programmatically
+
+## Difficulty Cycling
+
+The Chaos GUI cycles through difficulties in this order:
+
+```
+EASY → NORMAL → HARD → EASY
+```
+
+Implementation:
+
+```java
+public Difficulty getNextDifficulty() {
+    return switch (difficulty) {
+        case PEACEFUL, EASY -> Difficulty.NORMAL;
+        case NORMAL -> Difficulty.HARD;
+        case HARD -> Difficulty.EASY;
+    };
+}
+```
+
+<Note>
+Both PEACEFUL and EASY cycle to NORMAL as the next difficulty level.
+</Note>
+
+## Difficulty Display in GUI
+
+The difficulty item in the Chaos GUI shows:
+
+- **Item**: Changes based on difficulty (Wooden/Iron/Diamond Sword)
+- **Name**: "Difficulty" in red and bold
+- **Change to**: The difficulty you'll cycle to on next click
+- **Current**: The original difficulty when you opened the GUI
+
+### Color Coding
+
+Difficulties are color-coded for easy identification:
+
+| Difficulty | Color | Formatting |
+|------------|-------|------------|
+| Easy | Green | `Formatting.GREEN` |
+| Normal | Yellow | `Formatting.YELLOW` |
+| Hard | Red | `Formatting.RED` |
+
+## How Difficulty Affects Runs
+
+Difficulty settings impact Soul Link runs in several ways:
+
+### Mob Behavior
+
+Difficulty affects:
+- Mob damage output
+- Mob health values
+- Special mob abilities (e.g., zombies breaking doors on Hard)
+- Hunger depletion rate
+
+### Combined with Chaos Modes
+
+Difficulty interacts with other settings:
+
+**Half Heart Mode + Hard**: 
+- Extremely challenging as any damage is fatal
+- Mobs deal more damage but you only have 1 HP
+
+**Shared Potions + Higher Difficulty**:
+- Negative effects like poison are more dangerous when shared
+- Shared regeneration becomes more valuable
+
+**Manhunt Mode**:
+- Affects both Runners (who share Soul Link) and Hunters
+- Harder difficulties make the environment more dangerous for Runners
+
+## Difficulty Change Behavior
+
+### During Active Run
+
+Difficulty changes are deferred:
+
+```java
+if (runActive) {
+    this.pendingSnapshot = snapshot;
+    SoulLink.LOGGER.info("Settings changes queued for next run: {}", snapshot);
+}
+```
+
+When confirmed, players see:
+- Chat message showing the difficulty change
+- Yellow warning: "Changes will apply on next run."
+- Current difficulty remains active until run ends
+
+### When No Run is Active
+
+Difficulty applies immediately:
+
+```java
+if (!runActive) {
+    applySnapshotInternal(snapshot);
+    this.pendingSnapshot = null;
+}
+```
+
+## Pre-filling from World Difficulty
+
+When opening the Chaos GUI with no pending changes, the current world difficulty is used:
+
+```java
+Difficulty worldDifficulty = player.getEntityWorld().getDifficulty();
+if (worldDifficulty == Difficulty.PEACEFUL) {
+    worldDifficulty = Difficulty.EASY;
+}
+originalSnapshot = new Settings.SettingsSnapshot(worldDifficulty, ...);
+```
+
+<Info>
+This ensures the GUI always shows a valid starting difficulty, even if the world is set to Peaceful.
+</Info>
+
+## Default Difficulty
+
+If no settings file exists, Soul Link defaults to:
+
+```java
+private Difficulty difficulty = Difficulty.NORMAL;
+```
+
+This provides a balanced starting experience for new players.
+
+## Difficulty in Persistence
+
+Difficulty is stored as a string in the settings JSON:
+
+```json
+{
+  "difficulty": "NORMAL"
+}
+```
+
+When loading:
+- Missing or blank difficulty keeps the default (NORMAL)
+- Invalid difficulty names are ignored, keeping the default
+- Peaceful is normalized to Easy on load
+
+```java
+if (data.difficulty != null && !data.difficulty.isBlank()) {
+    try {
+        Difficulty d = Difficulty.valueOf(data.difficulty.toUpperCase());
+        s.setDifficulty(d); // Normalizes Peaceful to Easy
+    } catch (IllegalArgumentException ignored) {
+        // keep default
+    }
+}
+```

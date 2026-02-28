@@ -1,0 +1,343 @@
+---
+title: WorldService
+description: Manages temporary world creation, deletion, and lifecycle using the Fantasy library
+---
+
+## Overview
+
+`WorldService` encapsulates all temporary world management for speedruns. It integrates with the [Fantasy](https://github.com/NucleoidMC/fantasy) library to create and delete temporary dimensions (Overworld, Nether, End) on-demand without affecting the server's main worlds.
+
+Location: `src/main/java/net/zenzty/soullink/server/run/WorldService.java`
+
+## Fantasy Library Integration
+
+### What is Fantasy?
+
+Fantasy is a library for Minecraft Fabric servers that enables creating and managing temporary dimensions at runtime. Unlike vanilla Minecraft where dimensions are permanent, Fantasy allows:
+- Creating worlds with custom seeds and settings
+- Deleting worlds when no longer needed
+- Managing multiple temporary dimension sets simultaneously
+
+The Soul Link mod uses Fantasy to create fresh worlds for each speedrun attempt.
+
+### Obtaining Fantasy Instance
+
+```java
+public class WorldService {
+    private final MinecraftServer server;
+    private final Fantasy fantasy;
+
+    public WorldService(MinecraftServer server) {
+        this.server = server;
+        this.fantasy = Fantasy.get(server);
+    }
+}
+```
+
+Location: `WorldService.java:21-42`
+
+## World Handle Management
+
+`WorldService` maintains handles to both current and old world sets:
+
+```java
+// Temporary world handles
+private RuntimeWorldHandle overworldHandle;
+private RuntimeWorldHandle netherHandle;
+private RuntimeWorldHandle endHandle;
+
+// Old world handles (to delete after teleporting to new world)
+private RuntimeWorldHandle oldOverworldHandle;
+private RuntimeWorldHandle oldNetherHandle;
+private RuntimeWorldHandle oldEndHandle;
+
+// Current run seed
+private long currentSeed;
+```
+
+Location: `WorldService.java:26-37`
+
+The dual handle system allows for smooth transitions:
+1. Save current worlds as "old"
+2. Create new worlds
+3. Teleport players to new worlds
+4. Delete old worlds
+
+This prevents players from being kicked when their current world is deleted.
+
+## Creating Temporary Worlds
+
+The `createTemporaryWorlds()` method creates all three dimensions:
+
+```java
+public long createTemporaryWorlds() {
+    // Generate new seed for this run
+    currentSeed = new Random().nextLong();
+
+    // Get the difficulty from settings
+    Difficulty serverDifficulty = Settings.getInstance().getDifficulty();
+
+    // Create temporary Overworld
+    ServerWorld vanillaOverworld = server.getOverworld();
+    RuntimeWorldConfig overworldConfig = new RuntimeWorldConfig()
+            .setDimensionType(DimensionTypes.OVERWORLD)
+            .setDifficulty(serverDifficulty)
+            .setGameRule(GameRules.ADVANCE_TIME, true)
+            .setSeed(currentSeed)
+            .setGenerator(vanillaOverworld.getChunkManager().getChunkGenerator());
+
+    overworldHandle = fantasy.openTemporaryWorld(overworldConfig);
+    overworldHandle.asWorld().setTimeOfDay(0);
+    SoulLink.LOGGER.info("Created temporary overworld: {}",
+            overworldHandle.getRegistryKey().getValue());
+
+    // Create temporary Nether
+    ServerWorld vanillaNether = server.getWorld(World.NETHER);
+    if (vanillaNether != null) {
+        RuntimeWorldConfig netherConfig =
+                new RuntimeWorldConfig()
+                    .setDimensionType(DimensionTypes.THE_NETHER)
+                    .setDifficulty(serverDifficulty)
+                    .setSeed(currentSeed)
+                    .setGenerator(vanillaNether.getChunkManager().getChunkGenerator());
+
+        netherHandle = fantasy.openTemporaryWorld(netherConfig);
+        SoulLink.LOGGER.info("Created temporary nether: {}",
+                netherHandle.getRegistryKey().getValue());
+    }
+
+    // Create temporary End
+    ServerWorld vanillaEnd = server.getWorld(World.END);
+    if (vanillaEnd != null) {
+        RuntimeWorldConfig endConfig =
+                new RuntimeWorldConfig()
+                    .setDimensionType(DimensionTypes.THE_END)
+                    .setDifficulty(serverDifficulty)
+                    .setSeed(currentSeed)
+                    .setGenerator(vanillaEnd.getChunkManager().getChunkGenerator());
+
+        endHandle = fantasy.openTemporaryWorld(endConfig);
+        SoulLink.LOGGER.info("Created temporary end: {}",
+                endHandle.getRegistryKey().getValue());
+    }
+
+    return currentSeed;
+}
+```
+
+Location: `WorldService.java:49-95`
+
+### Key Configuration Points
+
+1. **Shared Seed**: All three dimensions use the same seed for consistency
+2. **Difficulty**: Respects server settings (configurable via `/settings difficulty`)
+3. **Time Advance**: Enabled for Overworld (time progresses during the run)
+4. **Generators**: Uses vanilla chunk generators from the main worlds
+
+### RuntimeWorldConfig
+
+Fantasy's `RuntimeWorldConfig` allows configuring:
+- `setDimensionType()` - Which dimension type (Overworld/Nether/End)
+- `setDifficulty()` - Peaceful, Easy, Normal, Hard
+- `setSeed()` - World generation seed
+- `setGenerator()` - Chunk generator (vanilla or custom)
+- `setGameRule()` - Individual game rule overrides
+
+## World Lifecycle
+
+### Saving Current Worlds as Old
+
+Before creating new worlds, save existing ones for later cleanup:
+
+```java
+public void saveCurrentWorldsAsOld() {
+    oldOverworldHandle = overworldHandle;
+    oldNetherHandle = netherHandle;
+    oldEndHandle = endHandle;
+    overworldHandle = null;
+    netherHandle = null;
+    endHandle = null;
+}
+```
+
+Location: `WorldService.java:101-108`
+
+### Deleting Old Worlds
+
+After players are teleported to new worlds, delete the old ones:
+
+```java
+public void deleteOldWorlds() {
+    safeDeleteWorld(oldOverworldHandle, "old temporary overworld");
+    oldOverworldHandle = null;
+
+    safeDeleteWorld(oldNetherHandle, "old temporary nether");
+    oldNetherHandle = null;
+
+    safeDeleteWorld(oldEndHandle, "old temporary end");
+    oldEndHandle = null;
+}
+
+private void safeDeleteWorld(RuntimeWorldHandle handle, String worldName) {
+    if (handle != null) {
+        try {
+            handle.delete();
+            SoulLink.LOGGER.info("Deleted {}", worldName);
+        } catch (Exception e) {
+            SoulLink.LOGGER.error("Failed to delete {}", worldName, e);
+        }
+    }
+}
+```
+
+Location: `WorldService.java:124-133,110-119`
+
+### Deleting Current Worlds
+
+When ending a run or shutting down:
+
+```java
+public void deleteCurrentWorlds() {
+    safeDeleteWorld(overworldHandle, "temporary overworld");
+    overworldHandle = null;
+
+    safeDeleteWorld(netherHandle, "temporary nether");
+    netherHandle = null;
+
+    safeDeleteWorld(endHandle, "temporary end");
+    endHandle = null;
+}
+```
+
+Location: `WorldService.java:138-147`
+
+## World Access Methods
+
+### Getting ServerWorld Instances
+
+```java
+public ServerWorld getOverworld() {
+    return overworldHandle != null ? overworldHandle.asWorld() : null;
+}
+
+public ServerWorld getNether() {
+    return netherHandle != null ? netherHandle.asWorld() : null;
+}
+
+public ServerWorld getEnd() {
+    return endHandle != null ? endHandle.asWorld() : null;
+}
+```
+
+Location: `WorldService.java:166-176`
+
+These methods convert Fantasy's `RuntimeWorldHandle` to Minecraft's `ServerWorld` for use with vanilla APIs.
+
+### Getting Registry Keys
+
+```java
+public RegistryKey<World> getOverworldKey() {
+    return overworldHandle != null ? overworldHandle.getRegistryKey() : null;
+}
+
+public RegistryKey<World> getNetherKey() {
+    return netherHandle != null ? netherHandle.getRegistryKey() : null;
+}
+
+public RegistryKey<World> getEndKey() {
+    return endHandle != null ? endHandle.getRegistryKey() : null;
+}
+```
+
+Location: `WorldService.java:178-188`
+
+Registry keys uniquely identify worlds and are used for:
+- Checking if a player is in a temporary world
+- Portal linking between dimensions
+- World-specific game logic
+
+### Checking Temporary Worlds
+
+```java
+public boolean isTemporaryWorld(RegistryKey<World> worldKey) {
+    if (worldKey == null)
+        return false;
+
+    RegistryKey<World> tempOverworld = getOverworldKey();
+    RegistryKey<World> tempNether = getNetherKey();
+    RegistryKey<World> tempEnd = getEndKey();
+
+    return worldKey.equals(tempOverworld) || worldKey.equals(tempNether)
+            || worldKey.equals(tempEnd);
+}
+```
+
+Location: `WorldService.java:152-162`
+
+This method determines if a given world is part of the current speedrun.
+
+## Portal Linking
+
+For Nether portal travel between temporary dimensions:
+
+```java
+public ServerWorld getLinkedNetherWorld(ServerWorld fromWorld) {
+    if (fromWorld == null)
+        return null;
+
+    RegistryKey<World> fromKey = fromWorld.getRegistryKey();
+
+    if (fromKey.equals(getOverworldKey())) {
+        return getNether();
+    } else if (fromKey.equals(getNetherKey())) {
+        return getOverworld();
+    }
+
+    return null;
+}
+```
+
+Location: `WorldService.java:197-210`
+
+This ensures portals link between temporary Overworld and Nether, not to vanilla worlds.
+
+## Error Handling
+
+All world deletion operations use safe wrappers:
+- Try-catch blocks prevent crashes from deletion failures
+- Null checks prevent errors when worlds don't exist
+- Logging provides visibility into world lifecycle events
+
+## Performance Considerations
+
+### Why Delete Old Worlds?
+
+World deletion is crucial for:
+1. **Memory management** - Unloaded worlds still consume memory
+2. **Disk space** - World data accumulates quickly
+3. **Performance** - Too many loaded worlds impact server tick rate
+
+### Why Wait to Delete?
+
+The two-step deletion (save as old → delete old) prevents:
+- Players being forcibly kicked mid-teleport
+- Chunks unloading before players finish loading new world
+- Race conditions between teleport and world deletion
+
+## Usage Example
+
+```java
+// In RunManager.startRun()
+worldService.saveCurrentWorldsAsOld();
+long seed = worldService.createTemporaryWorlds();
+
+// Later, in RunManager.transitionToRunning()
+ServerWorld overworld = worldService.getOverworld();
+teleportService.teleportToSpawn(player, overworld, spawnPos, timerService, true);
+worldService.deleteOldWorlds();
+
+// When run ends
+worldService.deleteCurrentWorlds();
+```
+
+This flow ensures smooth world transitions without disrupting player experience.

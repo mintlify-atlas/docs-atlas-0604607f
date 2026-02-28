@@ -1,0 +1,178 @@
+---
+title: Shared Potions Mode
+description: Documentation for Shared Potions mode where potion effects are synchronized between all players
+---
+
+Shared Potions Mode synchronizes all potion effects between Soul Link players. When one player receives a potion effect (positive or negative), all other players receive the same effect.
+
+## Overview
+
+When Shared Potions Mode is enabled:
+- **Duration-based effects** (Speed, Strength, Poison, etc.) are synced to all players immediately
+- **Instant effects** (Instant Health, Instant Damage) are applied only to the closest player to prevent multiplication
+- Both positive and negative effects are shared
+- Effects from all sources are synced (potions, splash potions, mob attacks, beacons)
+
+## How to Enable
+
+1. Run `/chaos` to open the Chaos Modes GUI
+2. Click on the **Glass Bottle/Dragon Breath** icon ("Shared Potions Mode")
+   - **Glass Bottle** = Disabled
+   - **Dragon Breath** = Enabled (blue color)
+3. Click the emerald "Confirm" button
+4. Start a new run with `/start`
+
+## Effect Types
+
+### Duration-Based Effects (Synced to All)
+
+These effects are immediately copied to all other Soul Link players:
+
+**Positive Effects:**
+- Speed, Haste, Strength, Jump Boost
+- Regeneration, Resistance, Fire Resistance
+- Water Breathing, Night Vision, Invisibility
+- Absorption, Luck, Slow Falling
+- Conduit Power, Dolphin's Grace, Hero of the Village
+
+**Negative Effects:**
+- Slowness, Mining Fatigue, Weakness
+- Poison, Wither, Nausea
+- Blindness, Hunger, Levitation
+- Glowing, Bad Omen, Darkness
+
+### Instant Effects (Closest Player Only)
+
+To prevent multiplication, instant effects are handled specially:
+
+- **Instant Health**: Only the closest player to the splash point receives healing
+- **Instant Damage**: Only the closest player receives damage (then shared via health sync)
+
+<Info>
+The system calculates the closest player based on distance from the splash potion's impact center (SharedPotionHandler.java:68-93).
+</Info>
+
+## Gameplay Impact
+
+### Strategic Opportunities
+
+<Tip>
+**Positive Synergies:**
+- One player drinks a potion, all players benefit
+- Share beacon effects across dimensions
+- Coordinate brewing to maximize efficiency
+- One player can handle all potion management
+</Tip>
+
+### Risks and Dangers
+
+<Warning>
+**Shared Negative Effects:**
+- Cave spider poison affects everyone
+- Wither skeleton effects spread to the whole team
+- One player's bad milk bucket timing hurts everyone
+- Harmful splash potions from witches hit all players
+</Warning>
+
+## Advanced Mechanics
+
+### Splash Potion Handling
+
+When a splash potion affects multiple Soul Link players (SharedPotionHandler.java:165-210):
+
+1. All players in the splash radius are tracked
+2. The system calculates the centroid (center point) of all affected players
+3. The player closest to the centroid receives the instant effect
+4. Duration effects are synced to everyone
+5. Health changes propagate through the normal Soul Link health sync
+
+This prevents duplication exploits where splash potions could give healing/damage to each player separately.
+
+### Synchronization Details
+
+The potion sync system (SharedPotionHandler.java:30-358):
+- Uses a `isSyncing` flag to prevent infinite loops
+- Tracks recently synced effects to prevent duplicates
+- Processes instant effects at tick-end to avoid race conditions
+- Clears tracking data after each tick
+
+## Implementation Details
+
+### Code Reference
+
+Effect sync logic (SharedPotionHandler.java:126-163):
+```java
+public static boolean onEffectApplied(ServerPlayerEntity player, 
+        StatusEffectInstance effect, Entity source) {
+    if (isSyncing) {
+        return true; // Allow synced effects through
+    }
+    
+    if (!settings.isSharedPotions()) {
+        return true; // Shared potions disabled
+    }
+    
+    // Handle instant vs duration effects
+    if (isInstantEffect(effectType)) {
+        return handleInstantEffect(player, effect, runManager);
+    }
+    
+    return handleDurationEffect(player, effect, runManager);
+}
+```
+
+### Instant Effect Types
+
+Checked using registry keys (SharedPotionHandler.java:100-103):
+```java
+public static boolean isInstantEffect(RegistryEntry<StatusEffect> effect) {
+    return effect.getKey().equals(StatusEffects.INSTANT_HEALTH.getKey())
+        || effect.getKey().equals(StatusEffects.INSTANT_DAMAGE.getKey());
+}
+```
+
+## Strategy Guide
+
+### Potion Management
+
+<Tip>
+**Best Practices:**
+1. Designate one player as the "potion master"
+2. Coordinate before drinking any potion
+3. Keep a bucket of milk ready for emergencies
+4. Avoid areas with poison-inflicting mobs
+5. Use lingering potions carefully (they affect areas over time)
+</Tip>
+
+### Dangerous Situations
+
+**Avoid These Scenarios:**
+- Fighting cave spiders (poison spreads to everyone)
+- Engaging wither skeletons (wither effect is deadly)
+- Witch encounters (random harmful potions)
+- Pufferfish proximity (poison on contact)
+- Guardian temples (Mining Fatigue III affects all players)
+
+## Manhunt Mode Interaction
+
+When combined with Manhunt Mode:
+- Only **Runners** share potion effects with each other
+- Hunters operate independently with vanilla mechanics
+- Hunters are not affected by Runner potion effects
+- Shared inventory mode reference: SharedPotionHandler.java:19
+
+## Related Modes
+
+<CardGroup cols={2}>
+  <Card title="Half-Heart Mode" icon="heart" href="/modes/half-heart">
+    Shared poison becomes instantly fatal
+  </Card>
+  
+  <Card title="Manhunt Mode" icon="crosshairs" href="/modes/manhunt">
+    Only affects Runners, not Hunters
+  </Card>
+  
+  <Card title="Shared Jumping" icon="person-running" href="/modes/shared-jumping">
+    Another shared mechanic modifier
+  </Card>
+</CardGroup>

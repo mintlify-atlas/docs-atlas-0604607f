@@ -1,0 +1,55 @@
+---
+title: Commands Overview
+description: Complete list of all Soul Link Speedrun mod commands
+---
+
+The Soul Link Speedrun mod provides several commands to manage speedrun sessions, view run information, and configure settings.
+
+## Available Commands
+
+### Run Management
+
+<CardGroup cols={2}>
+  <Card title="/start" icon="play" href="/commands/start">
+    Begin a new speedrun session and generate worlds
+  </Card>
+  <Card title="/reset" icon="rotate-right" href="/commands/reset">
+    Restart the current run (no OP required)
+  </Card>
+  <Card title="/stoprun" icon="stop" href="/commands/stoprun">
+    Stop the active run (requires operator)
+  </Card>
+  <Card title="/runinfo" icon="circle-info" href="/commands/runinfo">
+    Display current run state, timer, and shared stats
+  </Card>
+</CardGroup>
+
+### Configuration
+
+<CardGroup cols={2}>
+  <Card title="/chaos" icon="wand-magic-sparkles" href="/commands/chaos">
+    Open challenge settings GUI (difficulty, half heart mode, etc.)
+  </Card>
+  <Card title="/settings" icon="gear" href="/commands/settings">
+    Open info settings GUI (combat log, bug reports, commands)
+  </Card>
+</CardGroup>
+
+## Command Permissions
+
+Most commands are available to all players:
+- `/start` - All players
+- `/reset` - All players
+- `/runinfo` - All players
+- `/chaos` - All players (must be a player, not console)
+- `/settings` - All players (must be a player, not console)
+
+Only `/stoprun` requires operator (gamemaster) permissions.
+
+## Quick Start
+
+1. Configure your run settings with `/chaos` and `/settings`
+2. Start a new run with `/start`
+3. Check run progress with `/runinfo`
+4. Reset if needed with `/reset`
+5. Stop the run early with `/stoprun` (operators only)

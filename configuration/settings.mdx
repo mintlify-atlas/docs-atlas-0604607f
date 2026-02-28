@@ -1,0 +1,158 @@
+---
+title: Settings System
+description: Understanding the Soul Link settings architecture, GUI configuration, and the difference between pending and active settings
+---
+
+The Soul Link mod uses a sophisticated settings system that manages configuration through a virtual GUI and handles pending changes during active runs.
+
+## Settings Architecture
+
+Settings are managed through a singleton `Settings` class that maintains two distinct states:
+
+- **Active settings**: Currently applied settings used during runs
+- **Pending settings**: Changes queued to apply on the next run
+
+### SettingsSnapshot Record
+
+Settings use an immutable snapshot record for temporary editing and comparison:
+
+```java
+public record SettingsSnapshot(
+    Difficulty difficulty,
+    boolean halfHeartMode,
+    boolean sharedPotions,
+    boolean sharedJumping,
+    boolean manhuntMode,
+    boolean syncedInventory
+) {}
+```
+
+This record enables:
+- Temporary editing in the GUI without affecting active settings
+- Comparison to detect changes
+- Atomic application of multiple setting changes
+
+## Configuration via GUI
+
+Soul Link provides two settings GUIs accessed through commands:
+
+### Chaos Settings (`/chaos`)
+
+The Chaos GUI is a virtual double chest (54 slots) that allows players to configure:
+
+- **Difficulty**: Easy, Normal, or Hard (cycles through options)
+- **Half Heart Mode**: Players have only 1 health point
+- **Shared Potions**: Potion effects shared between all players
+- **Shared Jumping**: If one player jumps, all players jump
+- **Manhunt Mode**: Runners share Soul Link, Hunters get tracking compasses
+- **Synced Inventory**: All players share the same inventory
+
+<Info>
+The Chaos GUI uses virtual slots that prevent item interactions. All clicks are handled server-side to toggle settings.
+</Info>
+
+### Info Settings (`/settings`)
+
+The Info Settings GUI is a virtual single chest (27 slots) that provides:
+
+- **Combat Log**: Toggle damage notifications in chat (applies immediately)
+- **Bug Report**: Access to Discord for reporting issues
+- **Commands List**: Display available commands
+
+<Note>
+Unlike Chaos settings, the Combat Log toggle applies immediately without waiting for the next run.
+</Note>
+
+## Pending vs Active Settings
+
+The settings system handles changes differently depending on whether a run is active:
+
+### When No Run is Active
+
+Changes apply immediately:
+
+```java
+public void applySnapshot(SettingsSnapshot snapshot) {
+    // No active run - apply immediately
+    applySnapshotInternal(snapshot);
+    this.pendingSnapshot = null;
+}
+```
+
+### When a Run is Active
+
+Changes are deferred until the next run:
+
+```java
+if (runActive) {
+    // Defer all changes until next run
+    this.pendingSnapshot = snapshot;
+    SoulLink.LOGGER.info("Settings changes queued for next run: {}", snapshot);
+}
+```
+
+<Info>
+When settings are confirmed during an active run, players see a yellow warning: "⚠ Settings apply next run!"
+</Info>
+
+### Applying Pending Settings
+
+Pending settings are automatically applied when a new run starts:
+
+```java
+public void applyPendingSettings() {
+    if (pendingSnapshot != null) {
+        SoulLink.LOGGER.info("Applying pending settings for new run...");
+        applySnapshotInternal(pendingSnapshot);
+        pendingSnapshot = null;
+    }
+}
+```
+
+## Smart Change Detection
+
+The GUI pre-fills with pending values if they exist, showing players what changes are already queued:
+
+```java
+Settings.SettingsSnapshot pending = settings.getPendingSnapshotOrNull();
+if (pending != null) {
+    originalSnapshot = pending; // Show pending changes, not current run values
+} else {
+    originalSnapshot = settings.createSnapshot(); // Show current values
+}
+```
+
+The system also intelligently handles:
+
+- **No-op confirmations**: Re-confirming the same snapshot does nothing
+- **Revert to current**: Setting values back to current active state clears pending changes
+- **Change tracking**: Only broadcasts changes that actually differ from original values
+
+## GUI Implementation Details
+
+Both GUIs use virtual inventories that:
+
+- Display items that cannot be taken, inserted, or moved
+- Work in all game modes, including Spectator
+- Use special synchronization for Spectator mode to avoid protocol errors
+- Play sound effects for user feedback
+
+<Note>
+The virtual GUI system uses custom `VirtualSlot` classes that override `canTakeItems()` and `canInsert()` to return false, preventing all item interactions while still allowing visual feedback.
+</Note>
+
+## Spectator Mode Support
+
+Spectators can view the settings GUI but the system includes special handling:
+
+```java
+if (serverPlayer.interactionManager.getGameMode() == GameMode.SPECTATOR) {
+    // Force complete state sync for spectators
+    accessor.invokeUpdateToClient();
+} else {
+    // Normal content updates for other game modes
+    sendContentUpdates();
+}
+```
+
+This ensures spectators see the correct GUI state without client-side protocol errors.

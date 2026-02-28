@@ -1,0 +1,191 @@
+---
+title: Mod Compatibility
+description: Understanding Soul Link Speedrun compatibility with other Fabric mods and potential conflicts
+---
+
+Soul Link Speedrun is designed to be compatible with most Fabric mods, but certain categories of mods may cause conflicts due to the nature of the mod's mechanics.
+
+## Requirements
+
+### Fabric Loader
+
+**Minimum version**: 0.18.4
+
+The mod requires Fabric Loader version 0.18.4 or higher. This version is specified in the mod's dependencies.
+
+### Fabric API
+
+**Required version**: 0.141.1+1.21.11
+
+Fabric API is required for Soul Link Speedrun to function. The mod uses several Fabric API modules including:
+
+- Lifecycle Events
+- Networking API
+- Command API
+- Entity Events
+
+<Note>
+  While the mod is developed against Fabric API version `0.141.1+1.21.11`, it should work with other Fabric API versions compatible with Minecraft 1.21.11.
+</Note>
+
+### Bundled Dependencies
+
+**Fantasy**: `0.7.0+1.21.11`
+
+The [Fantasy library](https://github.com/NucleoidMC/fantasy) by NucleoidMC is bundled within the mod JAR. This library provides runtime world generation capabilities.
+
+<Note>
+  You do NOT need to install Fantasy separately - it's included in the Soul Link Speedrun JAR file.
+</Note>
+
+## Known Compatibility Issues
+
+Soul Link Speedrun modifies core game mechanics, which may conflict with other mods that touch similar systems.
+
+### Health & Hunger Modifiers
+
+<Warning>
+  Mods that modify health, hunger, or saturation mechanics may conflict with Soul Link's shared vitality system.
+</Warning>
+
+Potential conflicts:
+- Mods that change max health
+- Mods that add custom hunger/saturation mechanics
+- Mods that override damage calculations
+- Mods that modify food consumption
+
+**Examples**: AppleSkin (usually compatible), Hunger Overhaul variants, Health mods
+
+### Portal & Dimension Mods
+
+<Warning>
+  Mods that modify portal behavior or dimension handling may interfere with Soul Link's world generation system.
+</Warning>
+
+Soul Link uses Fantasy to create isolated temporary dimensions for each speedrun. Mods that:
+- Add custom portals
+- Modify Nether/End portal behavior
+- Change dimension loading/unloading
+- Add new dimensions
+
+**Note**: Most dimension mods work fine, but those that override vanilla portal mechanics may cause issues.
+
+### World Generation Mods
+
+<Warning>
+  World generation mods may cause unexpected behavior in Soul Link's temporary worlds.
+</Warning>
+
+While generally compatible, mods that significantly alter world generation may:
+- Change the difficulty of speedruns
+- Affect structure spawning (strongholds, End portals)
+- Impact performance during world creation
+
+**Examples**: Terralith, Biomes O' Plenty, BetterEnd, BetterNether
+
+<Note>
+  These mods usually work but may make speedruns easier or harder depending on generation changes.
+</Note>
+
+### Death Handling Mods
+
+<Warning>
+  Mods that prevent death or modify death behavior will conflict with Soul Link's "one death, all dead" mechanic.
+</Warning>
+
+Avoid mods that:
+- Prevent player death
+- Add respawn mechanics
+- Modify death penalties
+- Override death events
+
+**Examples**: Death chest mods (usually fine), Gravestone mods (usually fine), Totem mods (may work)
+
+## Compatible Mod Categories
+
+The following types of mods are generally safe to use:
+
+### Performance Mods
+- Sodium
+- Lithium
+- Phosphor
+- FerriteCore
+
+### Utility Mods
+- Mod Menu
+- REI (Roughly Enough Items)
+- JEI (Just Enough Items)
+- MiniHUD
+
+### Visual Mods
+- Iris Shaders
+- LambDynamicLights
+- Continuity
+- Visuality
+
+### Quality of Life
+- Xaero's Minimap
+- Inventory sorting mods
+- Chat mods
+- Sound mods
+
+## Server vs Client
+
+<Note>
+  Soul Link Speedrun is a **server-side mod**. Players connecting to a server do NOT need to install it on their client.
+</Note>
+
+The mod works seamlessly with:
+- Vanilla clients
+- Clients with client-side mods only
+- Clients with Fabric Loader but no server-side mods
+
+### Hosting
+
+| Environment | Compatibility | Notes |
+|-------------|---------------|-------|
+| **Dedicated Server** | ✅ Fully supported | Recommended for multiplayer |
+| **Single-player** | ✅ Fully supported | Works in local worlds |
+| **LAN Hosting** | ✅ Fully supported | Host needs the mod installed |
+| **Essentials.gg** | ✅ Fully supported | Only host needs the mod |
+
+## Testing Compatibility
+
+If you're unsure about a mod's compatibility:
+
+<Steps>
+  <Step title="Test in a development environment">
+    Install both mods in a test environment before deploying to production.
+  </Step>
+
+  <Step title="Check for conflicts">
+    Look for:
+    - Error messages in logs
+    - Unexpected behavior with shared health/hunger
+    - World generation issues
+    - Portal or dimension problems
+  </Step>
+
+  <Step title="Report issues">
+    If you discover a compatibility issue, report it on the [GitHub Issues](https://github.com/palicz/Soul-Link-Speedrun/issues) page with:
+    - Both mod names and versions
+    - Fabric Loader and API versions
+    - Description of the conflict
+    - Logs if available
+  </Step>
+</Steps>
+
+## Dependency Resolution
+
+The mod uses the Nucleoid Maven repository for the Fantasy dependency:
+
+```gradle
+repositories {
+    maven {
+        name = "Nucleoid"
+        url = "https://maven.nucleoid.xyz/"
+    }
+}
+```
+
+If you're developing with Soul Link as a dependency, add this repository to your `build.gradle`.

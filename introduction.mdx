@@ -1,0 +1,73 @@
+---
+title: Introduction
+description: Transform multiplayer survival into a cooperative speedrun where teamwork is everything
+---
+
+## Welcome to Soul Link Speedrun
+
+Soul Link Speedrun transforms multiplayer Minecraft into an intense cooperative challenge where **all players share the same health, hunger, and saturation**. Work together with your team to defeat the Ender Dragon as fast as possible - but remember, if any player dies, the run ends for everyone.
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Get started by installing the mod on your Fabric server
+  </Card>
+  <Card title="Quick start" icon="rocket" href="/quickstart">
+    Launch your first speedrun in minutes
+  </Card>
+  <Card title="Commands" icon="terminal" href="/commands/overview">
+    Learn all available commands and their usage
+  </Card>
+  <Card title="Features" icon="sparkles" href="/modes/overview">
+    Explore shared mechanics and customization options
+  </Card>
+</CardGroup>
+
+## Why Soul Link Speedrun?
+
+### Shared vitality system
+All players are connected through a shared pool of health, hunger, and saturation. When one player takes damage, everyone feels it. When one player eats, everyone's hunger bar refills. This creates a unique cooperative dynamic where every action matters.
+
+### Isolated temporary worlds
+Each run generates completely isolated temporary worlds that are automatically cleaned up after completion. No more manual world resets - just click and start fresh every time.
+
+### Precise timer system
+Track your speedrun time with a two-phase timer that displays in the action bar, capturing your final time from the moment you start until victory or defeat.
+
+### Server-side only
+Players connecting to a server with this mod **do not need to install it on their client**. It works seamlessly with any Fabric server setup, making it easy to run with friends.
+
+## Key features
+
+<AccordionGroup>
+  <Accordion title="Shared health and hunger">
+    All players share a single, synchronized pool of health, hunger, and saturation. Damage and healing affect everyone simultaneously, making teamwork and protection essential.
+  </Accordion>
+  
+  <Accordion title="Customizable difficulty">
+    Use the Settings GUI to toggle specific mechanics:
+    - **Shared potions:** Positive and negative effects apply to all players
+    - **Shared jumping:** Coordinate movement as jumps synchronize across the team
+    - **Half-heart mode:** Cap max health at 0.5 hearts for the ultimate challenge
+    - **Difficulty:** Adjust world difficulty from the settings menu
+  </Accordion>
+  
+  <Accordion title="One death ends the run">
+    If a single player makes a fatal mistake, the run ends immediately for everyone. Every decision counts when you're all connected.
+  </Accordion>
+  
+  <Accordion title="Automatic world management">
+    Fresh worlds are generated for each run with automatic cleanup. Late-joining players can hop in mid-run and instantly sync to the current state, or join fresh after a reset.
+  </Accordion>
+  
+  <Accordion title="Victory condition">
+    The run is only considered successful once the Ender Dragon is defeated. Your final time is captured and displayed to all players.
+  </Accordion>
+</AccordionGroup>
+
+## What's next?
+
+Ready to get started? Head over to the [installation guide](/installation) to set up Soul Link Speedrun on your server, or jump straight to the [quick start](/quickstart) if you already have it installed.
+
+<Note>
+  This mod uses the [Fantasy](https://github.com/NucleoidMC/fantasy) library by NucleoidMC for runtime world generation.
+</Note>

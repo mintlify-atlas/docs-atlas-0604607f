@@ -1,0 +1,680 @@
+---
+title: SharedStatsHandler
+description: Implementation of health, hunger, and saturation synchronization between players
+---
+
+## Overview
+
+`SharedStatsHandler` implements the core "Soul Link" mechanic where all players share the same health, hunger, saturation, and absorption values. This creates the signature challenge: damage to one player affects everyone.
+
+Location: `src/main/java/net/zenzty/soullink/server/health/SharedStatsHandler.java`
+
+## Core Architecture
+
+### Master Stat Values
+
+The handler maintains master values that are synchronized to all players:
+
+```java
+// Master stat values
+private static volatile float sharedHealth = 20.0f;
+private static volatile int sharedHunger = 20;
+private static volatile float sharedSaturation = 5.0f;
+private static volatile float sharedAbsorption = 0.0f; // Golden apples, etc
+
+// Prevent infinite sync loops
+private static volatile boolean isSyncing = false;
+```
+
+Location: `SharedStatsHandler.java:23-30`
+
+All fields are `static` and `volatile` for thread-safe access across server threads.
+
+### Accumulators for Fractional Values
+
+To prevent rounding errors when dividing by player count, accumulators track fractional amounts:
+
+```java
+// Accumulator for fractional natural regen (since we divide by player count)
+private static volatile float regenAccumulator = 0.0f;
+
+// Accumulator for fractional regeneration effect healing
+private static volatile float regenerationHealAccumulator = 0.0f;
+
+// Accumulators for fractional hunger/saturation drain
+private static volatile float hungerDrainAccumulator = 0.0f;
+private static volatile float saturationDrainAccumulator = 0.0f;
+
+// Accumulator for fractional damage (Poison/Wither)
+private static volatile float damageAccumulator = 0.0f;
+```
+
+Location: `SharedStatsHandler.java:33-43`
+
+Without accumulators, effects like regeneration would heal at wildly different rates depending on player count.
+
+## Manhunt Mode Integration
+
+In Manhunt mode, only Speedrunners share stats (Hunters use vanilla mechanics):
+
+```java
+private static boolean shouldParticipateInSoulLink(ServerPlayerEntity player) {
+    RunManager runManager;
+    try {
+        runManager = RunManager.getInstance();
+    } catch (IllegalStateException e) {
+        return false;
+    }
+    if (!runManager.isRunActive())
+        return false;
+    if (!Settings.getInstance().isManhuntMode())
+        return true;
+    return ManhuntManager.getInstance().isSpeedrunner(player);
+}
+```
+
+Location: `SharedStatsHandler.java:60-72`
+
+This method is called before every stat synchronization to determine eligibility.
+
+## Initialization and Reset
+
+### Reset Method
+
+Called when starting a new run:
+
+```java
+public static void reset() {
+    // Use half heart mode max health if enabled
+    float maxHealth = getMaxHealth();
+
+    sharedHealth = maxHealth;
+    sharedHunger = 20;
+    sharedSaturation = 5.0f;
+    sharedAbsorption = 0.0f;
+    isSyncing = false;
+    regenAccumulator = 0.0f;
+    regenerationHealAccumulator = 0.0f;
+    hungerDrainAccumulator = 0.0f;
+    saturationDrainAccumulator = 0.0f;
+    damageAccumulator = 0.0f;
+
+    // Also reset other shared handlers
+    SharedPotionHandler.reset();
+    SharedJumpHandler.reset();
+
+    SoulLink.LOGGER.info("Shared stats reset to defaults (maxHealth={})", maxHealth);
+}
+```
+
+Location: `SharedStatsHandler.java:77-97`
+
+The `maxHealth` respects "Half Heart Mode" (1 HP vs 20 HP):
+
+```java
+private static float getMaxHealth() {
+    return Settings.getInstance().isHalfHeartMode() ? 1.0f : 20.0f;
+}
+```
+
+Location: `SharedStatsHandler.java:48-50`
+
+### Syncing Late Joiners
+
+```java
+public static void syncPlayerToSharedStats(ServerPlayerEntity player) {
+    if (isSyncing)
+        return;
+
+    isSyncing = true;
+    try {
+        player.setHealth(sharedHealth);
+        player.setAbsorptionAmount(sharedAbsorption);
+        player.getHungerManager().setFoodLevel(sharedHunger);
+        player.getHungerManager().setSaturationLevel(sharedSaturation);
+        SoulLink.LOGGER.debug(
+                "Synced {} to shared stats: HP={}, Absorption={}, Food={}, Sat={}",
+                player.getName().getString(), sharedHealth, sharedAbsorption, sharedHunger,
+                sharedSaturation);
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:103-120`
+
+## Health Synchronization
+
+### Damage Handling
+
+When a player takes damage:
+
+```java
+public static void onPlayerHealthChanged(ServerPlayerEntity damagedPlayer, float newHealth,
+        DamageSource damageSource) {
+    if (isSyncing)
+        return;
+    if (!shouldParticipateInSoulLink(damagedPlayer))
+        return;
+
+    RunManager runManager = RunManager.getInstance();
+    if (runManager == null || !runManager.isRunActive())
+        return;
+
+    ServerWorld playerWorld = getPlayerWorld(damagedPlayer);
+    if (playerWorld == null)
+        return;
+
+    if (!runManager.isTemporaryWorld(playerWorld.getRegistryKey()))
+        return;
+
+    isSyncing = true;
+    try {
+        float oldHealth = sharedHealth;
+        float currentDamageAmount = oldHealth - newHealth;
+
+        // Handle periodic damage (Poison/Wither) - normalize by player count
+        String damageType = damageSource.getName();
+        if (damageType.equals("poison") || damageType.equals("wither")) {
+            handlePeriodicDamage(damagedPlayer, currentDamageAmount);
+            return;
+        }
+
+        // Update the master health to match the damaged player's health
+        sharedHealth = MathHelper.clamp(newHealth, 0.0f, getMaxHealth());
+
+        // Check for death condition
+        if (sharedHealth <= 0) {
+            SoulLink.LOGGER.info("Shared health depleted - triggering game over");
+            runManager.triggerGameOver();
+            return;
+        }
+
+        // Sync to other players...
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:138-243`
+
+### Why Separate Periodic Damage?
+
+Poison and Wither damage ticks every player simultaneously. Without normalization:
+- 1 poisoned player: -1 HP every 25 ticks
+- 4 poisoned players: -4 HP every 25 ticks (4x faster death!)
+
+The solution:
+
+```java
+private static void handlePeriodicDamage(ServerPlayerEntity damagedPlayer, float damageAmount) {
+    // Count eligible players
+    int playerCount = 0;
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        if (!shouldParticipateInSoulLink(player))
+            continue;
+        ServerWorld world = getPlayerWorld(player);
+        if (world != null && runManager.isTemporaryWorld(world.getRegistryKey())) {
+            playerCount++;
+        }
+    }
+
+    if (playerCount == 0)
+        return;
+
+    // Normalize damage by player count
+    float normalizedDamage = damageAmount / playerCount;
+    damageAccumulator += normalizedDamage;
+
+    // Only apply when accumulated >= 0.5 HP
+    if (damageAccumulator >= 0.5f) {
+        float damageToApply = damageAccumulator;
+        damageAccumulator = 0.0f;
+
+        float oldHealth = sharedHealth;
+        sharedHealth = MathHelper.clamp(sharedHealth - damageToApply, 0.0f, getMaxHealth());
+
+        // Sync to all players
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            if (!shouldParticipateInSoulLink(player))
+                continue;
+            player.setHealth(sharedHealth);
+        }
+    } else {
+        // Revert the damage until threshold reached
+        damagedPlayer.setHealth(sharedHealth);
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:250-306`
+
+Now 4 poisoned players = 4 × (1 HP / 4 players) = 1 HP per tick (same as 1 player).
+
+### Syncing Damage to Others
+
+When non-periodic damage occurs, sync to all other players:
+
+```java
+if (sharedHealth < oldHealth) {
+    MinecraftServer server = runManager.getServer();
+    if (server == null)
+        return;
+
+    float syncedDamageAmount = oldHealth - sharedHealth;
+    List<ServerPlayerEntity> players = server.getPlayerManager().getPlayerList();
+
+    // Broadcast damage notification (if combat log enabled)
+    if (Settings.getInstance().isDamageLogEnabled()) {
+        float damageInHearts = syncedDamageAmount / 2.0f;
+        float roundedDamage = Math.max(0.5f, Math.round(damageInHearts * 2.0f) / 2.0f);
+        String damageText = String.format(Locale.US, "%.1f", roundedDamage);
+        Text damageNotification = Text.empty().append(RunManager.getPrefix())
+                .append(Text.literal(damagedPlayer.getName().getString())
+                        .formatted(Formatting.WHITE))
+                .append(Text.literal(" has taken ").formatted(Formatting.GRAY))
+                .append(Text.literal(damageText + " ❤").formatted(Formatting.RED))
+                .append(Text.literal(" damage.").formatted(Formatting.GRAY));
+        server.getPlayerManager().broadcast(damageNotification, false);
+    }
+
+    for (ServerPlayerEntity player : players) {
+        if (player == damagedPlayer || player.isSpectator() || player.isCreative())
+            continue;
+        if (!shouldParticipateInSoulLink(player))
+            continue;
+
+        ServerWorld otherWorld = getPlayerWorld(player);
+        if (otherWorld == null)
+            continue;
+
+        if (!runManager.isTemporaryWorld(otherWorld.getRegistryKey()))
+            continue;
+
+        // Apply actual damage to trigger client-side effects (red flash, shake, sound)
+        DamageSource syncDamage = otherWorld.getDamageSources().generic();
+        player.damage(otherWorld, syncDamage, syncedDamageAmount);
+
+        // Safety: restore health if player "died" but shared health remains
+        if (!player.isAlive() && sharedHealth > 0) {
+            player.setHealth(Math.max(1.0f, sharedHealth));
+        } else {
+            player.setHealth(sharedHealth);
+        }
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:180-239`
+
+Important: `player.damage()` is called to trigger client-side visual/audio feedback, then health is set to the correct shared value.
+
+### Healing
+
+Healing (from potions, golden apples, etc.) works similarly:
+
+```java
+public static void onPlayerHealed(ServerPlayerEntity healedPlayer, float newHealth) {
+    if (isSyncing)
+        return;
+    if (!shouldParticipateInSoulLink(healedPlayer))
+        return;
+
+    // ... validation checks ...
+
+    isSyncing = true;
+    try {
+        float oldHealth = sharedHealth;
+        sharedHealth = MathHelper.clamp(newHealth, 0.0f, getMaxHealth());
+
+        if (sharedHealth > oldHealth) {
+            // Sync to all other players
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                if (player == healedPlayer)
+                    continue;
+                if (!shouldParticipateInSoulLink(player))
+                    continue;
+
+                player.setHealth(sharedHealth);
+            }
+        }
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:314-369`
+
+## Regeneration Normalization
+
+### Natural Regeneration
+
+Similar to periodic damage, natural regen must be normalized:
+
+```java
+public static void onNaturalRegen(ServerPlayerEntity regenPlayer, float healAmount) {
+    if (isSyncing)
+        return;
+    if (!shouldParticipateInSoulLink(regenPlayer))
+        return;
+
+    // ... validation ...
+
+    int playerCount = 0;
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        if (!shouldParticipateInSoulLink(player))
+            continue;
+        ServerWorld world = getPlayerWorld(player);
+        if (world != null && runManager.isTemporaryWorld(world.getRegistryKey())) {
+            playerCount++;
+        }
+    }
+
+    if (playerCount == 0)
+        return;
+
+    // Divide heal by player count and accumulate
+    float normalizedHeal = healAmount / playerCount;
+    regenAccumulator += normalizedHeal;
+
+    // Apply when accumulated >= 0.5 HP
+    if (regenAccumulator >= 0.5f) {
+        float healToApply = regenAccumulator;
+        regenAccumulator = 0.0f;
+
+        isSyncing = true;
+        try {
+            float oldHealth = sharedHealth;
+            sharedHealth = MathHelper.clamp(sharedHealth + healToApply, 0.0f, getMaxHealth());
+
+            if (sharedHealth > oldHealth) {
+                // Sync to all players
+                for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                    if (!shouldParticipateInSoulLink(player))
+                        continue;
+                    player.setHealth(sharedHealth);
+                }
+            }
+        } finally {
+            isSyncing = false;
+        }
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:523-600`
+
+### Regeneration Effect
+
+The Regeneration potion effect is handled separately:
+
+```java
+public static void onRegenerationHeal(ServerPlayerEntity regenPlayer, float healAmount) {
+    // ... similar normalization logic ...
+    
+    float normalizedHeal = healAmount / playerCount;
+    regenerationHealAccumulator += normalizedHeal;
+
+    if (regenerationHealAccumulator >= 0.5f) {
+        float healToApply = regenerationHealAccumulator;
+        regenerationHealAccumulator = 0.0f;
+
+        // Apply healing...
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:378-458`
+
+## Hunger Synchronization
+
+### Food Level and Saturation
+
+```java
+public static void onPlayerHungerChanged(ServerPlayerEntity player, int newFoodLevel,
+        float newSaturation) {
+    if (isSyncing)
+        return;
+    if (!shouldParticipateInSoulLink(player))
+        return;
+
+    // ... validation ...
+
+    isSyncing = true;
+    try {
+        boolean foodChanged = newFoodLevel != sharedHunger;
+        boolean satChanged = Math.abs(newSaturation - sharedSaturation) > 0.01f;
+
+        if (!foodChanged && !satChanged) {
+            return;
+        }
+
+        sharedHunger = MathHelper.clamp(newFoodLevel, 0, 20);
+        sharedSaturation = MathHelper.clamp(newSaturation, 0.0f, 20.0f);
+
+        // Sync to all other players
+        for (ServerPlayerEntity otherPlayer : server.getPlayerManager().getPlayerList()) {
+            if (otherPlayer == player)
+                continue;
+            if (!shouldParticipateInSoulLink(otherPlayer))
+                continue;
+
+            otherPlayer.getHungerManager().setFoodLevel(sharedHunger);
+            otherPlayer.getHungerManager().setSaturationLevel(sharedSaturation);
+        }
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:605-662`
+
+### Natural Hunger Drain
+
+When health regenerates naturally, it consumes hunger. This must also be normalized:
+
+```java
+public static void onNaturalHungerDrain(ServerPlayerEntity drainPlayer, int foodDrain,
+        float satDrain) {
+    // ... count players ...
+
+    // Divide drain by player count and accumulate
+    float normalizedFoodDrain = (float) foodDrain / playerCount;
+    float normalizedSatDrain = satDrain / playerCount;
+
+    hungerDrainAccumulator += normalizedFoodDrain;
+    saturationDrainAccumulator += normalizedSatDrain;
+
+    // Apply when thresholds reached
+    boolean shouldApply = hungerDrainAccumulator >= 1.0f || saturationDrainAccumulator >= 0.5f;
+
+    if (shouldApply) {
+        isSyncing = true;
+        try {
+            // Apply accumulated food drain (whole numbers only)
+            int foodToApply = (int) hungerDrainAccumulator;
+            if (foodToApply > 0) {
+                sharedHunger = MathHelper.clamp(sharedHunger - foodToApply, 0, 20);
+                hungerDrainAccumulator -= foodToApply;
+            }
+
+            // Apply accumulated saturation drain
+            if (saturationDrainAccumulator >= 0.1f) {
+                float satToApply = saturationDrainAccumulator;
+                sharedSaturation = MathHelper.clamp(sharedSaturation - satToApply, 0.0f, 20.0f);
+                saturationDrainAccumulator = 0.0f;
+            }
+
+            // Sync to all players
+            for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+                if (!shouldParticipateInSoulLink(player))
+                    continue;
+                player.getHungerManager().setFoodLevel(sharedHunger);
+                player.getHungerManager().setSaturationLevel(sharedSaturation);
+            }
+        } finally {
+            isSyncing = false;
+        }
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:670-753`
+
+## Absorption Hearts
+
+Golden apples and similar items grant absorption (yellow hearts):
+
+```java
+public static void onAbsorptionChanged(ServerPlayerEntity changedPlayer, float newAbsorption) {
+    if (isSyncing)
+        return;
+    if (!shouldParticipateInSoulLink(changedPlayer))
+        return;
+
+    // ... validation ...
+
+    if (Math.abs(newAbsorption - sharedAbsorption) < 0.1f)
+        return;
+
+    isSyncing = true;
+    try {
+        float oldAbsorption = sharedAbsorption;
+        sharedAbsorption = MathHelper.clamp(newAbsorption, 0.0f, 20.0f);
+
+        // Sync to all other players
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            if (player == changedPlayer)
+                continue;
+            if (!shouldParticipateInSoulLink(player))
+                continue;
+
+            player.setAbsorptionAmount(sharedAbsorption);
+        }
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:464-515`
+
+## Periodic Sync Check
+
+Every second, ensure all players stay synchronized:
+
+```java
+public static void tickSync(MinecraftServer server) {
+    if (isSyncing)
+        return;
+
+    RunManager runManager = RunManager.getInstance();
+    if (runManager == null || !runManager.isRunActive())
+        return;
+
+    // Only run every 20 ticks (1 second)
+    if (server.getTicks() % 20 != 0)
+        return;
+
+    isSyncing = true;
+    try {
+        for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+            if (!shouldParticipateInSoulLink(player))
+                continue;
+
+            float playerHealth = player.getHealth();
+            float playerAbsorption = player.getAbsorptionAmount();
+            int playerFood = player.getHungerManager().getFoodLevel();
+            float playerSat = player.getHungerManager().getSaturationLevel();
+
+            if (Math.abs(playerHealth - sharedHealth) > 0.5f) {
+                player.setHealth(sharedHealth);
+            }
+            if (Math.abs(playerAbsorption - sharedAbsorption) > 0.5f) {
+                player.setAbsorptionAmount(sharedAbsorption);
+            }
+            if (playerFood != sharedHunger) {
+                player.getHungerManager().setFoodLevel(sharedHunger);
+            }
+            if (Math.abs(playerSat - sharedSaturation) > 0.5f) {
+                player.getHungerManager().setSaturationLevel(sharedSaturation);
+            }
+        }
+    } finally {
+        isSyncing = false;
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:758-803`
+
+This catches any desync issues from network lag or mixin timing.
+
+## Preventing Infinite Loops
+
+The `isSyncing` flag is critical:
+
+```java
+if (isSyncing)
+    return;
+
+isSyncing = true;
+try {
+    // Modify player health/hunger
+    player.setHealth(sharedHealth);
+} finally {
+    isSyncing = false;
+}
+```
+
+Without this flag:
+1. Player A takes damage
+2. `onPlayerHealthChanged()` syncs to Player B
+3. Player B's health changes, triggering `onPlayerHealthChanged()` again
+4. Infinite loop crashes server
+
+The flag breaks the cycle by ignoring changes made during sync operations.
+
+## Helper Methods
+
+### Sync Disabled Wrapper
+
+```java
+public static void withSyncingDisabled(Runnable task) {
+    boolean wasSyncing = isSyncing;
+    setSyncing(true);
+    try {
+        task.run();
+    } finally {
+        setSyncing(wasSyncing);
+    }
+}
+```
+
+Location: `SharedStatsHandler.java:823-832`
+
+Used by other handlers (like `SharedPotionHandler`) to temporarily disable sync detection.
+
+### Getters and Setters
+
+```java
+public static float getSharedHealth() {
+    return sharedHealth;
+}
+
+public static int getSharedHunger() {
+    return sharedHunger;
+}
+
+public static float getSharedSaturation() {
+    return sharedSaturation;
+}
+```
+
+Location: `SharedStatsHandler.java:836-846`
+
+Provide read-only access to current shared stat values for UI display or debugging.

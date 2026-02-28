@@ -1,0 +1,85 @@
+---
+title: Development Setup
+description: Set up your development environment to contribute to Soul Link Speedrun
+---
+
+This guide walks you through setting up a development environment for Soul Link Speedrun mod development.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Java Development Kit (JDK) 21** - Required for compilation
+- **Git** - For cloning the repository
+- **An IDE** - IntelliJ IDEA (recommended) or Eclipse
+
+## Setup Instructions
+
+<Steps>
+  <Step title="Install JDK 21">
+    Download and install JDK 21 from [Adoptium](https://adoptium.net/) or your preferred JDK distribution.
+    
+    Verify installation:
+    ```bash
+    java -version
+    ```
+    
+    Should output Java version 21 or higher.
+  </Step>
+
+  <Step title="Clone the repository">
+    Clone the Soul Link Speedrun repository from GitHub:
+    
+    ```bash
+    git clone https://github.com/palicz/Soul-Link-Speedrun.git
+    cd Soul-Link-Speedrun
+    ```
+  </Step>
+
+  <Step title="Generate IDE files">
+    For IntelliJ IDEA:
+    ```bash
+    ./gradlew genSources
+    ```
+    
+    Then open the project folder in IntelliJ IDEA. The IDE will automatically detect it as a Gradle project.
+  </Step>
+
+  <Step title="Verify setup">
+    Test that everything is configured correctly:
+    
+    ```bash
+    ./gradlew build
+    ```
+    
+    If successful, you're ready to start developing!
+  </Step>
+</Steps>
+
+## Project Structure
+
+The project uses the following key technologies:
+
+- **Minecraft Version**: 1.21.11
+- **Fabric Loader**: 0.18.4
+- **Fabric API**: 0.141.1+1.21.11
+- **Yarn Mappings**: 1.21.11+build.3
+- **Fabric Loom**: 1.14-SNAPSHOT
+
+## Gradle Configuration
+
+<Note>
+  The project is configured to use 1GB of memory for Gradle (`org.gradle.jvmargs=-Xmx1G`).
+  
+  Configuration cache is disabled due to IntelliJ IDEA compatibility issues.
+</Note>
+
+## Next Steps
+
+Once your environment is set up, you can:
+
+- Build the mod JAR file
+- Run the mod in a development environment
+- Make changes and test them locally
+
+See the [Building](/development/building) guide for information on compiling the mod.

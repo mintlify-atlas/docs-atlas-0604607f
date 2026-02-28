@@ -1,0 +1,103 @@
+---
+title: /stoprun Command
+description: Administrative command to stop the active run (requires operator)
+---
+
+The `/stoprun` command is an administrative command that allows operators to immediately stop the current speedrun session. This is useful for server management and moderation purposes.
+
+## Syntax
+
+```
+/stoprun
+```
+
+<ParamField path="No parameters" type="void">
+  This command takes no parameters
+</ParamField>
+
+## Permissions
+
+- **Permission Level**: 2 (Gamemaster/Operator)
+- **Can be used by**: Operators and console
+- **Operator required**: Yes
+
+<Warning>
+  This command requires operator permissions. Only trusted server administrators should have access to this command.
+</Warning>
+
+## Behavior
+
+When executed by an operator, the `/stoprun` command:
+
+1. Checks if there's an active run
+2. Triggers game over to end the run immediately
+3. Sends feedback confirming the run was stopped
+4. Does not automatically start a new run
+
+## Examples
+
+<CodeGroup>
+```minecraft Successful Stop
+/stoprun
+> [Soul Link] Run stopped.
+```
+
+```minecraft No Active Run
+/stoprun
+> [Soul Link] No active run.
+```
+
+```minecraft Insufficient Permissions
+/stoprun
+> You do not have permission to use this command.
+```
+</CodeGroup>
+
+## Error Messages
+
+<ResponseField name="Run manager not initialized" type="error">
+  The mod failed to initialize properly.
+  
+  **Solution**: Restart the server or check logs for initialization errors.
+</ResponseField>
+
+<ResponseField name="No active run" type="error">
+  There is no currently active run to stop.
+  
+  **Solution**: This is not an error condition - simply indicates no run is in progress.
+</ResponseField>
+
+<ResponseField name="You do not have permission to use this command" type="error">
+  The player executing the command does not have operator permissions.
+  
+  **Solution**: Grant operator status with `/op <player>` or use `/reset` instead (no OP required).
+</ResponseField>
+
+## Use Cases
+
+### Server Management
+- Emergency stop during server maintenance
+- Resolving conflicts or disputes
+- Testing and debugging
+
+### Player Reset Alternative
+For players without operator permissions, use `/reset` instead, which provides similar functionality without requiring elevated permissions.
+
+## Comparison with /reset
+
+| Feature | /stoprun | /reset |
+|---------|----------|--------|
+| Permission Level | 2 (Operators) | 0 (All players) |
+| Purpose | Administrative stop | Quick restart |
+| Broadcast | Sends feedback | Broadcasts to all |
+| Typical Use | Server management | Practice runs |
+
+## Source Code Reference
+
+Implemented in `CommandRegistry.java:95-116`
+
+Requires permission check via `CommandManager.requirePermissionLevel(CommandManager.GAMEMASTERS_CHECK)` at `CommandRegistry.java:36-38`
+
+<Info>
+  For non-operator players who need to restart runs, use `/reset` instead.
+</Info>

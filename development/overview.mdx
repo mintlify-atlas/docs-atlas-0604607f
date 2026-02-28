@@ -1,0 +1,184 @@
+---
+title: Architecture Overview
+description: High-level architecture of the Soul Link Speedrun mod, including main packages and design patterns
+---
+
+## Introduction
+
+The Soul Link Speedrun mod is built with a clean, service-oriented architecture that separates concerns into distinct packages. The core design uses the **Facade pattern** through the `RunManager` class, which coordinates multiple specialized services to manage the speedrun lifecycle.
+
+## Main Packages
+
+The mod is organized into the following key packages:
+
+### `net.zenzty.soullink.server.run`
+Core run management and lifecycle services:
+- **RunManager** - Central facade coordinating all run services
+- **WorldService** - Temporary world creation and cleanup
+- **TimerService** - Run timer management
+- **SpawnFinder** - Spawn point search algorithm
+- **PlayerTeleportService** - Player teleportation utilities
+- **RunState** - Run lifecycle state enum
+
+### `net.zenzty.soullink.server.health`
+Shared stats synchronization:
+- **SharedStatsHandler** - Health and hunger synchronization
+- **SharedPotionHandler** - Potion effect sharing
+- **SharedJumpHandler** - Jump boost synchronization
+
+### `net.zenzty.soullink.server.manhunt`
+Manhunt mode features:
+- **ManhuntManager** - Runner/Hunter team management
+- **CompassTrackingHandler** - Hunter compass tracking
+
+### `net.zenzty.soullink.server.settings`
+Configuration management:
+- **Settings** - Game mode and difficulty settings
+- **SettingsPersistence** - Settings serialization
+
+### `net.zenzty.soullink.server.inventory`
+Inventory synchronization:
+- **SharedInventoryHandler** - Synced inventory mode
+
+### `net.zenzty.soullink.server.event`
+Event handling:
+- **EventRegistry** - Delayed task scheduling
+
+### `net.zenzty.soullink.server.command`
+Command implementations:
+- Various command classes for `/start`, `/end`, etc.
+
+### `net.zenzty.soullink.mixin`
+Minecraft mixins for hooking into vanilla behavior:
+- **player/** - Player-related hooks
+- **server/** - Server-side hooks
+- **item/** - Item behavior modifications
+
+## Design Patterns
+
+### Facade Pattern
+
+The `RunManager` class implements the **Facade pattern**, providing a simplified interface to coordinate multiple complex subsystems:
+
+```java
+public class RunManager {
+    private final MinecraftServer server;
+    private final WorldService worldService;
+    private final TimerService timerService;
+    private final SpawnFinder spawnFinder;
+    private final PlayerTeleportService teleportService;
+    
+    // Facade methods delegate to appropriate services
+    public void startRun() {
+        worldService.saveCurrentWorldsAsOld();
+        long seed = worldService.createTemporaryWorlds();
+        timerService.reset();
+        spawnFinder.reset();
+        // ...
+    }
+}
+```
+
+Location: `RunManager.java:45-110`
+
+This pattern keeps the run management logic organized and testable by delegating to specialized services rather than implementing everything in one monolithic class.
+
+### Singleton Pattern
+
+Many core services use thread-safe singleton initialization:
+
+```java
+private static volatile RunManager instance;
+
+public static synchronized void init(MinecraftServer server) {
+    if (instance != null) {
+        SoulLink.LOGGER.warn("RunManager already initialized!");
+        return;
+    }
+    instance = new RunManager(server);
+}
+
+public static RunManager getInstance() {
+    if (instance == null) {
+        throw new IllegalStateException("RunManager not initialized");
+    }
+    return instance;
+}
+```
+
+Location: `RunManager.java:47,112-125`
+
+### Service Layer Pattern
+
+Each major feature is encapsulated in a dedicated service class:
+- `WorldService` handles Fantasy world lifecycle
+- `TimerService` manages timing and action bar display
+- `SpawnFinder` implements incremental spawn search
+- `PlayerTeleportService` handles all teleportation logic
+
+This separation allows services to be developed, tested, and maintained independently.
+
+### State Machine Pattern
+
+The run lifecycle is managed through the `RunState` enum:
+
+```java
+public enum RunState {
+    IDLE,              // No active run
+    GENERATING_WORLD,  // Searching for spawn
+    RUNNING,           // Game in progress
+    GAMEOVER           // Victory or defeat
+}
+```
+
+Location: `RunState.java:6-17`
+
+State transitions are carefully controlled:
+- `IDLE` → `GENERATING_WORLD` (when `/start` is run)
+- `GENERATING_WORLD` → `RUNNING` (when spawn found)
+- `RUNNING` → `GAMEOVER` (on death or dragon kill)
+- `GAMEOVER` → `IDLE` (automatic cleanup)
+
+## Data Flow
+
+### Run Start Flow
+1. User runs `/start` command
+2. `RunManager.startRun()` coordinates:
+   - Save old world handles
+   - Create new temporary worlds via `WorldService`
+   - Reset shared stats via `SharedStatsHandler`
+   - Reset timer via `TimerService`
+   - Start spawn search via `SpawnFinder`
+   - Put players in spectator mode
+3. Each tick, `SpawnFinder` incrementally searches for spawn
+4. When found, transition to `RUNNING` state
+5. Teleport players and start timer
+
+### Stat Synchronization Flow
+1. Player takes damage/heals/eats
+2. Mixin intercepts the event
+3. `SharedStatsHandler` updates master values
+4. Master values sync to all other players
+5. Sync flag prevents infinite loops
+
+## Thread Safety
+
+The architecture uses several thread-safety mechanisms:
+- `volatile` fields for state shared across threads
+- `synchronized` methods for critical initialization
+- `isSyncing` flags to prevent recursive updates
+- Accumulators for fractional damage/healing to prevent rounding errors
+
+## Integration Points
+
+### Fantasy Library
+The mod uses the [Fantasy](https://github.com/NucleoidMC/fantasy) library for temporary world management. `WorldService` wraps Fantasy's API to create and delete dimensions on-demand.
+
+### Minecraft Mixins
+Mixins hook into vanilla Minecraft behavior at critical points:
+- Player damage/healing
+- Hunger changes
+- Portal usage
+- End dragon fight
+
+See the `mixin/` package for implementation details.

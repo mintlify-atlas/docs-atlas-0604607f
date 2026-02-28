@@ -1,0 +1,78 @@
+---
+title: /start Command
+description: Begin a new speedrun session and generate worlds
+---
+
+The `/start` command initiates a new speedrun session. Depending on your configuration, it either starts the run immediately or opens a Runner/Hunter selector GUI for Manhunt mode.
+
+## Syntax
+
+```
+/start
+```
+
+<ParamField path="No parameters" type="void">
+  This command takes no parameters
+</ParamField>
+
+## Permissions
+
+- **Permission Level**: 0 (All players)
+- **Can be used by**: Players and console
+- **Operator required**: No
+
+## Behavior
+
+### Standard Mode
+
+When Manhunt mode is disabled, the command immediately starts a new speedrun:
+
+1. Initializes the Run Manager
+2. Generates new worlds
+3. Begins the timer
+4. Broadcasts start message to all players
+
+### Manhunt Mode
+
+When Manhunt mode is enabled for the next run:
+
+1. Opens the Runner/Hunter selector GUI
+2. Players select their roles
+3. Run starts after confirmation in the GUI
+4. **Note**: Only players can start a Manhunt run (console cannot)
+
+## Examples
+
+<CodeGroup>
+```minecraft Standard Run
+/start
+> [Soul Link] Run started!
+```
+
+```minecraft Manhunt Run
+/start
+> [Opens Runner/Hunter selector GUI]
+```
+</CodeGroup>
+
+## Error Messages
+
+<ResponseField name="Run manager not initialized" type="error">
+  The mod failed to initialize properly. This usually indicates a server startup issue.
+  
+  **Solution**: Restart the server or check logs for initialization errors.
+</ResponseField>
+
+<ResponseField name="Only players can start a Manhunt run" type="error">
+  Occurs when attempting to start a Manhunt run from console.
+  
+  **Solution**: Have a player execute the `/start` command instead.
+</ResponseField>
+
+## Source Code Reference
+
+Implemented in `CommandRegistry.java:61-93`
+
+<Tip>
+  Configure your run settings with `/chaos` and `/settings` before starting a new run.
+</Tip>

@@ -1,0 +1,79 @@
+---
+title: /reset Command
+description: Restart the current run without requiring operator permissions
+---
+
+The `/reset` command allows players to restart the current speedrun session. This is particularly useful for quick resets during practice runs without needing operator permissions.
+
+## Syntax
+
+```
+/reset
+```
+
+<ParamField path="No parameters" type="void">
+  This command takes no parameters
+</ParamField>
+
+## Permissions
+
+- **Permission Level**: 0 (All players)
+- **Can be used by**: Players and console
+- **Operator required**: No
+
+## Behavior
+
+When executed, the `/reset` command:
+
+1. Checks if there's an active run to reset
+2. Triggers game over to end the current run
+3. Broadcasts reset message to all players
+4. Prepares the server for a new run with `/start`
+
+<Warning>
+  This command ends the current run immediately. All progress will be lost. Make sure this is what you want before executing.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+```minecraft Successful Reset
+/reset
+> [Soul Link] Run has been reset.
+```
+
+```minecraft No Active Run
+/reset
+> [Soul Link] No active run to reset.
+```
+</CodeGroup>
+
+## Error Messages
+
+<ResponseField name="Run manager not initialized" type="error">
+  The mod failed to initialize properly.
+  
+  **Solution**: Restart the server or check logs for initialization errors.
+</ResponseField>
+
+<ResponseField name="No active run to reset" type="error">
+  There is no currently active run to reset.
+  
+  **Solution**: Start a new run with `/start` first.
+</ResponseField>
+
+## Comparison with /stoprun
+
+| Feature | /reset | /stoprun |
+|---------|--------|----------|
+| Permission Level | 0 (All players) | 2 (Operators) |
+| Purpose | Quick restart | Administrative stop |
+| Typical Use | Practice runs | Server management |
+
+## Source Code Reference
+
+Implemented in `CommandRegistry.java:175-198`
+
+<Tip>
+  Use `/reset` for quick practice run restarts. For administrative control, operators should use `/stoprun`.
+</Tip>

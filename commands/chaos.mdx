@@ -1,0 +1,111 @@
+---
+title: /chaos Command
+description: Open the challenge settings GUI to configure difficulty and modifiers
+---
+
+The `/chaos` command opens an interactive GUI where players can configure challenge settings and difficulty modifiers for their speedrun sessions.
+
+## Syntax
+
+```
+/chaos
+```
+
+<ParamField path="No parameters" type="void">
+  This command takes no parameters and opens a GUI
+</ParamField>
+
+## Permissions
+
+- **Permission Level**: 0 (All players)
+- **Can be used by**: Players only (not console)
+- **Operator required**: No
+
+<Warning>
+  This command can only be executed by players. Console cannot use this command as it requires a GUI interface.
+</Warning>
+
+## Behavior
+
+When executed by a player:
+
+1. Opens the Settings GUI (`SettingsGui`)
+2. Player can configure challenge settings:
+   - Difficulty level
+   - Half heart mode
+   - Custom modifiers
+   - Other challenge options
+3. Changes are saved when the GUI is closed
+4. Settings apply to the next run started with `/start`
+
+## GUI Features
+
+The chaos settings GUI typically includes:
+
+- **Difficulty Settings**: Configure game difficulty
+- **Half Heart Mode**: Enable/disable reduced health
+- **Challenge Modifiers**: Additional gameplay modifiers
+- **Run Configuration**: Various speedrun-specific settings
+
+<Info>
+  The exact options available in the GUI depend on your mod version and configuration. Check the GUI in-game for all available settings.
+</Info>
+
+## Examples
+
+<CodeGroup>
+```minecraft Player Opens GUI
+/chaos
+> [Opens SettingsGui for the player]
+```
+
+```minecraft Console Attempt
+/chaos
+> [Soul Link] Only players can use this command.
+```
+</CodeGroup>
+
+## Error Messages
+
+<ResponseField name="Only players can use this command" type="error">
+  Occurs when attempting to execute from console or non-player source.
+  
+  **Solution**: Execute the command as a player in-game.
+</ResponseField>
+
+## Workflow
+
+1. Execute `/chaos` to open the settings GUI
+2. Configure your desired challenge settings
+3. Close the GUI to save changes
+4. Start a new run with `/start` to apply the settings
+
+<Tip>
+  Configure challenge settings before starting your run. Changes made during an active run will not take effect until the next run.
+</Tip>
+
+## Related Commands
+
+- `/settings` - Opens info settings GUI (combat log, bug reports)
+- `/start` - Starts a new run with configured settings
+- `/runinfo` - View current run state and statistics
+
+## Use Cases
+
+### Practice Runs
+- Adjust difficulty for training
+- Enable/disable modifiers for specific practice
+
+### Challenge Runs
+- Configure maximum difficulty for challenge attempts
+- Set up specific modifier combinations
+
+### Team Coordination
+- Agree on settings before starting multiplayer runs
+- Test different configurations
+
+## Source Code Reference
+
+Implemented in `CommandRegistry.java:155-163`
+
+Opens `SettingsGui.open(player)` which provides the interactive configuration interface.

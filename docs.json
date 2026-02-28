@@ -1,122 +1,100 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Soul Link Speedrun",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#E74C3C",
+    "light": "#FF6B6B",
+    "dark": "#C0392B"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/palicz/Soul-Link-Speedrun"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/palicz/Soul-Link-Speedrun"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Mechanics",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "mechanics/shared-vitality",
+              "mechanics/world-generation",
+              "mechanics/timer-system",
+              "mechanics/death-system"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Game Modes",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "modes/overview",
+              "modes/half-heart",
+              "modes/shared-potions",
+              "modes/shared-jumping",
+              "modes/manhunt",
+              "modes/synced-inventory"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Commands",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "commands/overview",
+              "commands/start",
+              "commands/reset",
+              "commands/stoprun",
+              "commands/runinfo",
+              "commands/chaos",
+              "commands/settings"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/settings",
+              "configuration/difficulty",
+              "configuration/persistence"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Development",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Architecture",
             "pages": [
-              "api-reference/introduction"
+              "development/overview",
+              "development/run-manager",
+              "development/world-service",
+              "development/shared-stats"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Contributing",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "development/setup",
+              "development/building",
+              "development/compatibility"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

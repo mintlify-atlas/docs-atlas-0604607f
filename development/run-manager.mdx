@@ -1,0 +1,426 @@
+---
+title: RunManager
+description: Central facade coordinating run lifecycle, state transitions, and player management
+---
+
+## Overview
+
+`RunManager` is the heart of the Soul Link Speedrun mod. It implements the **Facade pattern** to coordinate multiple services and manage the complete speedrun lifecycle, from world generation to victory or defeat.
+
+Location: `src/main/java/net/zenzty/soullink/server/run/RunManager.java`
+
+## Class Structure
+
+### Dependencies
+
+```java
+public class RunManager {
+    private final MinecraftServer server;
+    private final WorldService worldService;
+    private final TimerService timerService;
+    private final SpawnFinder spawnFinder;
+    private final PlayerTeleportService teleportService;
+    
+    // Game state
+    private volatile RunState gameState = RunState.IDLE;
+    private volatile boolean endInitialized = false;
+}
+```
+
+Location: `RunManager.java:45-59`
+
+The `RunManager` delegates to five specialized services, keeping each concern isolated:
+- **WorldService** - Fantasy world creation/deletion
+- **TimerService** - Run timer and action bar display
+- **SpawnFinder** - Incremental spawn point search
+- **PlayerTeleportService** - Safe player teleportation
+
+### Initialization
+
+`RunManager` uses thread-safe singleton initialization:
+
+```java
+private static volatile RunManager instance;
+
+public static synchronized void init(MinecraftServer server) {
+    if (instance != null) {
+        SoulLink.LOGGER.warn("RunManager already initialized!");
+        return;
+    }
+    instance = new RunManager(server);
+}
+
+public static RunManager getInstance() {
+    if (instance == null) {
+        throw new IllegalStateException("RunManager not initialized");
+    }
+    return instance;
+}
+```
+
+Location: `RunManager.java:112-125`
+
+The `volatile` keyword ensures visibility across threads, while `synchronized` prevents race conditions during initialization.
+
+## Run Lifecycle
+
+### State Transitions
+
+The run progresses through four states defined by the `RunState` enum:
+
+```java
+public enum RunState {
+    IDLE,              // No active run
+    GENERATING_WORLD,  // World created, searching for spawn
+    RUNNING,           // Game in progress
+    GAMEOVER           // Victory or defeat
+}
+```
+
+Location: `RunState.java:6-17`
+
+### Starting a Run
+
+The `startRun()` method orchestrates the complex process of beginning a new speedrun:
+
+```java
+public void startRun() {
+    if (gameState == RunState.RUNNING || gameState == RunState.GENERATING_WORLD) {
+        SoulLink.LOGGER.warn("Attempted to start run while already running or generating!");
+        return;
+    }
+
+    // Apply pending settings (Manhunt, Chaos options, etc.)
+    Settings.getInstance().applyPendingSettings();
+    SettingsPersistence.save(server);
+
+    // Clear lingering bossbars from previous run
+    clearEnderDragonBossbar();
+    clearRaidBossbars();
+
+    // Save old worlds for later deletion
+    worldService.saveCurrentWorldsAsOld();
+
+    // Create new temporary worlds
+    long seed = worldService.createTemporaryWorlds();
+
+    // Reset shared stats
+    SharedStatsHandler.reset();
+
+    // Reset End initialization flag
+    endInitialized = false;
+
+    // Reset timer
+    timerService.reset();
+
+    // Reset spawn search and start generating
+    spawnFinder.reset();
+    gameState = RunState.GENERATING_WORLD;
+
+    // Put all players in spectator mode
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        player.changeGameMode(GameMode.SPECTATOR);
+    }
+}
+```
+
+Location: `RunManager.java:150-203`
+
+### Tick Processing
+
+Every server tick, `RunManager` processes the current state:
+
+```java
+public void tick() {
+    // Handle incremental world generation
+    if (gameState == RunState.GENERATING_WORLD) {
+        ServerWorld overworld = worldService.getOverworld();
+        if (overworld == null) {
+            SoulLink.LOGGER.error("No overworld handle during generation!");
+            gameState = RunState.IDLE;
+            return;
+        }
+
+        if (spawnFinder.processStep(overworld, server)) {
+            transitionToRunning();
+        }
+        return;
+    }
+
+    if (gameState != RunState.RUNNING) {
+        return;
+    }
+
+    // Manually advance time in temporary overworld
+    ServerWorld tempOverworld = worldService.getOverworld();
+    if (tempOverworld != null) {
+        tempOverworld.setTimeOfDay(tempOverworld.getTimeOfDay() + 1);
+    }
+
+    // Handle timer (includes waiting for input)
+    timerService.tick(server, this::isInRun, this::shouldSkipTimerActionBarFor);
+}
+```
+
+Location: `RunManager.java:210-238`
+
+The tick method:
+1. During `GENERATING_WORLD`, processes incremental spawn search
+2. When spawn found, transitions to `RUNNING`
+3. During `RUNNING`, advances time and updates timer
+
+### Transition to Running
+
+When spawn is found, the mod transitions to the active run:
+
+```java
+private void transitionToRunning() {
+    ServerWorld overworld = worldService.getOverworld();
+    BlockPos spawnPos = spawnFinder.getSpawnPos();
+
+    // Use fallback if no spawn found
+    if (spawnPos == null) {
+        spawnPos = new BlockPos(0, 64, 0);
+        SoulLink.LOGGER.warn("Using fallback spawn at {}", spawnPos);
+    }
+
+    // Forceload chunks around spawn
+    teleportService.forceloadSpawnChunks(overworld, spawnPos);
+
+    gameState = RunState.RUNNING;
+
+    boolean manhunt = Settings.getInstance().isManhuntMode();
+    ManhuntManager manhuntManager = ManhuntManager.getInstance();
+
+    if (manhunt) {
+        // Create teams and assign roles
+        manhuntManager.createTeams(server);
+        manhuntManager.assignPlayersToTeams(server);
+    }
+
+    // Teleport all players to spawn
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        boolean syncToShared = !manhunt || manhuntManager.isSpeedrunner(player);
+        teleportService.teleportToSpawn(player, overworld, spawnPos, timerService,
+                syncToShared);
+    }
+
+    // Delete old worlds
+    worldService.deleteOldWorlds();
+
+    if (manhunt) {
+        // Give hunters tracking compasses
+        CompassTrackingHandler.reset();
+        for (UUID hunterId : manhuntManager.getHunters()) {
+            ServerPlayerEntity hunter = server.getPlayerManager().getPlayer(hunterId);
+            if (hunter != null) {
+                CompassTrackingHandler.giveTrackingCompass(hunter);
+            }
+        }
+        applyHeadStartEffects(manhuntManager);
+    }
+
+    server.getPlayerManager().broadcast(formatMessage("World ready! Good luck!"), false);
+}
+```
+
+Location: `RunManager.java:256-315`
+
+## Game End States
+
+### Game Over (Death)
+
+When all players die (shared health reaches 0):
+
+```java
+public synchronized void triggerGameOver() {
+    if (gameState != RunState.RUNNING) {
+        return;
+    }
+
+    timerService.stop();
+    gameState = RunState.GAMEOVER;
+
+    ManhuntManager.getInstance().cleanupTeams(server);
+    CompassTrackingHandler.reset();
+
+    String finalTime = timerService.getFormattedTime();
+
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        if (isInRun(player)) {
+            player.changeGameMode(GameMode.SPECTATOR);
+            player.getInventory().clear();
+
+            ServerWorld world = getPlayerWorld(player);
+            if (world != null) {
+                world.playSound(null, player.getX(), player.getY(), player.getZ(),
+                        SoundEvents.ENTITY_WITHER_DEATH, SoundCategory.PLAYERS, 0.5f, 0.8f);
+            }
+
+            player.networkHandler.sendPacket(new TitleS2CPacket(
+                    Text.literal("GAME OVER").formatted(Formatting.RED, Formatting.BOLD)));
+
+            player.networkHandler.sendPacket(
+                    new SubtitleS2CPacket(Text.literal(finalTime).formatted(Formatting.WHITE)));
+        }
+    }
+}
+```
+
+Location: `RunManager.java:445-478`
+
+### Victory (Ender Dragon)
+
+When the Ender Dragon is defeated:
+
+```java
+public synchronized void triggerVictory() {
+    if (gameState != RunState.RUNNING) {
+        return;
+    }
+
+    timerService.stop();
+    gameState = RunState.GAMEOVER;
+
+    ManhuntManager.getInstance().cleanupTeams(server);
+    CompassTrackingHandler.reset();
+
+    String finalTime = timerService.getFormattedTime();
+
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        ServerWorld world = getPlayerWorld(player);
+        if (world != null) {
+            world.playSound(null, player.getX(), player.getY(), player.getZ(),
+                    SoundEvents.UI_TOAST_CHALLENGE_COMPLETE, SoundCategory.PLAYERS, 1.0f, 1.0f);
+        }
+
+        player.networkHandler.sendPacket(new TitleS2CPacket(
+                Text.literal("VICTORY").formatted(Formatting.GOLD, Formatting.BOLD)));
+
+        player.networkHandler.sendPacket(
+                new SubtitleS2CPacket(Text.literal(finalTime).formatted(Formatting.WHITE)));
+    }
+
+    Text victoryMessage = Text.empty().append(getPrefix())
+            .append(Text.literal("Dragon defeated in ").formatted(Formatting.GRAY))
+            .append(Text.literal(finalTime).formatted(Formatting.WHITE));
+    server.getPlayerManager().broadcast(victoryMessage, false);
+}
+```
+
+Location: `RunManager.java:495-528`
+
+## Key Methods
+
+### Late Join Handling
+
+Players joining during an active run are automatically synced:
+
+```java
+public void teleportPlayerToRun(ServerPlayerEntity player) {
+    if (gameState == RunState.GENERATING_WORLD) {
+        player.changeGameMode(GameMode.SPECTATOR);
+        player.getInventory().clear();
+        player.clearStatusEffects();
+        player.sendMessage(formatMessage("Finding spawn point, please wait..."), false);
+        return;
+    }
+
+    if (gameState == RunState.RUNNING && spawnFinder.hasFoundSpawn()) {
+        ServerWorld overworld = worldService.getOverworld();
+        if (overworld != null) {
+            if (Settings.getInstance().isManhuntMode()) {
+                // In Manhunt, late joiners spectate
+                player.changeGameMode(GameMode.SPECTATOR);
+                // ...
+            } else {
+                // In regular mode, sync them to the run
+                teleportService.teleportToSpawn(player, overworld, spawnFinder.getSpawnPos(),
+                        timerService, true);
+                if (Settings.getInstance().isSyncedInventory()) {
+                    SharedInventoryHandler.syncPlayerToShared(player);
+                }
+                player.sendMessage(formatMessageWithPlayer("", player.getName().getString(),
+                        " joined. Stats synced."), false);
+            }
+        }
+    }
+}
+```
+
+Location: `RunManager.java:401-437`
+
+### World Management
+
+Helpers for checking and managing temporary worlds:
+
+```java
+public boolean isTemporaryWorld(RegistryKey<World> worldKey) {
+    return worldService.isTemporaryWorld(worldKey);
+}
+
+public ServerWorld getTemporaryOverworld() {
+    return worldService.getOverworld();
+}
+
+public ServerWorld getTemporaryNether() {
+    return worldService.getNether();
+}
+
+public ServerWorld getTemporaryEnd() {
+    return worldService.getEnd();
+}
+```
+
+Location: `RunManager.java:690-676`
+
+## Manhunt Mode
+
+In Manhunt mode, `RunManager` coordinates with `ManhuntManager` to:
+
+### Apply Head Start Effects
+
+```java
+private void applyHeadStartEffects(ManhuntManager manhuntManager) {
+    int durationTicks = HEAD_START_SECONDS * 20;
+
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        if (manhuntManager.isHunter(player)) {
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS,
+                    durationTicks, 0, false, false, true));
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS,
+                    durationTicks, 255, false, false, true));
+        } else if (manhuntManager.isSpeedrunner(player)) {
+            player.addStatusEffect(new StatusEffectInstance(StatusEffects.SPEED, durationTicks,
+                    0, false, false, true));
+        }
+    }
+    
+    // Display countdown to hunters...
+}
+```
+
+Location: `RunManager.java:323-337`
+
+This gives speedrunners a 30-second head start by blinding and immobilizing hunters while granting speed to runners.
+
+## Cleanup
+
+When the server shuts down, `RunManager` performs cleanup:
+
+```java
+public static synchronized void cleanup() {
+    RunManager currentInstance = instance;
+    if (currentInstance != null) {
+        ManhuntManager.getInstance().cleanupTeams(currentInstance.server);
+        CompassTrackingHandler.reset();
+        currentInstance.worldService.deleteOldWorlds();
+        currentInstance.deleteWorlds(true);
+        instance = null;
+    }
+}
+```
+
+Location: `RunManager.java:127-136`
+
+This ensures all temporary worlds are deleted and teams are cleaned up.

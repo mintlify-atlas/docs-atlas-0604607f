@@ -1,0 +1,84 @@
+---
+title: Game Modes Overview
+description: Overview of all available game modes and chaos modifiers in Soul Link Speedrun
+---
+
+Soul Link Speedrun offers several game modes and chaos modifiers that can be enabled to increase difficulty or change gameplay mechanics. These settings are configured through the `/chaos` command before starting a run.
+
+## Available Game Modes
+
+### Core Modes
+
+<CardGroup cols={2}>
+  <Card title="Half-Heart Mode" icon="heart" href="/modes/half-heart">
+    Players have only 1 health point (0.5 hearts)
+  </Card>
+  
+  <Card title="Shared Potions" icon="flask" href="/modes/shared-potions">
+    Potion effects are shared between all players
+  </Card>
+  
+  <Card title="Shared Jumping" icon="person-running" href="/modes/shared-jumping">
+    When one player jumps, all players jump
+  </Card>
+  
+  <Card title="Manhunt Mode" icon="crosshairs" href="/modes/manhunt">
+    Runners vs Hunters with tracking compasses
+  </Card>
+  
+  <Card title="Synced Inventory" icon="box" href="/modes/synced-inventory">
+    All players share the same inventory
+  </Card>
+</CardGroup>
+
+## Enabling Game Modes
+
+All game modes are configured through the Chaos Modes GUI:
+
+1. Open the settings GUI with `/chaos`
+2. Click on the mode icons to toggle them on/off
+3. Click the emerald "Confirm" button to save changes
+4. Settings apply on the next run (after `/start`)
+
+<Tip>
+You can enable multiple game modes simultaneously for extra chaos! For example, combine Half-Heart Mode with Shared Potions for extreme difficulty.
+</Tip>
+
+## Mode Compatibility
+
+### Manhunt Mode Interactions
+
+When **Manhunt Mode** is enabled:
+- Runners share Soul Link mechanics (health, hunger, and enabled chaos modes)
+- Hunters operate with vanilla mechanics and don't share anything
+- Game modes like Shared Potions and Synced Inventory only affect Runners
+
+### Settings Persistence
+
+Settings are saved automatically when confirmed:
+- Changes made during an active run are queued and apply on the next run
+- Difficulty can be changed immediately (even during a run)
+- All other settings require a new run to take effect
+
+<Warning>
+Some mode combinations are extremely difficult! Half-Heart Mode combined with any other chaos mode can lead to instant death scenarios.
+</Warning>
+
+## Implementation Details
+
+Settings are managed by the `Settings.java` class:
+- Settings are stored in `settings.json` in the world folder (Settings.java:12)
+- Pending changes are queued if a run is active (Settings.java:158-183)
+- The settings GUI shows pending changes instead of active settings (SettingsGui.java:52-69)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Difficulty" icon="gauge" href="/configuration/difficulty">
+    Learn about difficulty settings
+  </Card>
+  
+  <Card title="Start a Run" icon="flag-checkered" href="/quickstart">
+    Start your first Soul Link run
+  </Card>
+</CardGroup>

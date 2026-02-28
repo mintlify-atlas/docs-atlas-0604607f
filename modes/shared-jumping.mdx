@@ -1,0 +1,199 @@
+---
+title: Shared Jumping Mode
+description: Documentation for Shared Jumping mode where all players jump simultaneously
+---
+
+Shared Jumping Mode synchronizes jumping between all Soul Link players. When one player jumps, all other players are forced to jump at the same time, creating chaotic and unpredictable movement.
+
+## Overview
+
+When Shared Jumping Mode is enabled:
+- If any player jumps, all Soul Link players jump simultaneously
+- Forced jumps only apply to players on the ground (prevents air-stacking)
+- Jump velocity is synchronized across all players
+- The system uses tick-end processing to prevent race conditions
+
+## How to Enable
+
+1. Run `/chaos` to open the Chaos Modes GUI
+2. Click on the **Feather/Rabbit Foot** icon ("Shared Jumping Mode")
+   - **Feather** = Disabled
+   - **Rabbit Foot** = Enabled (yellow color)
+3. Click the emerald "Confirm" button
+4. Start a new run with `/start`
+
+<Info>
+The mode displays as "Shared Jumping Mode" with yellow/gold formatting in the GUI (SettingsGui.java:270-296).
+</Info>
+
+## Gameplay Impact
+
+### Movement Challenges
+
+<Warning>
+**Coordination Required:**
+- Platforming becomes extremely difficult
+- One player's jump can cause others to fall
+- Bridge building requires perfect synchronization
+- Combat movement is unpredictable
+- Parkour sections become nearly impossible
+</Warning>
+
+### Dangerous Scenarios
+
+**High-Risk Situations:**
+- **Cliff edges**: One player jumps, others fall off
+- **Lava lakes**: Forced jump while crossing narrow paths
+- **The Nether**: Jumping near ledges can be fatal
+- **Combat**: Unexpected jumps ruin dodging attempts
+- **Elytra flying**: Firework jumping affects all players
+
+### Strategic Opportunities
+
+<Tip>
+**Team Strategies:**
+- Coordinate jumps in voice chat before attempting
+- One player "pilots" while others follow instructions
+- Use water buckets more liberally for safety
+- Build wider bridges and platforms
+- Practice synchronized parkour before difficult sections
+</Tip>
+
+## Advanced Mechanics
+
+### Tick-End Processing
+
+The system uses deferred processing to prevent race conditions (SharedJumpHandler.java:92-154):
+
+1. **Jump Detection**: When a player jumps naturally, they're added to `jumpersThisTick` set
+2. **Collection Phase**: All jumps during the tick are collected
+3. **Processing Phase**: At tick end, forced jumps are applied to non-jumping players
+4. **Cleanup**: Tracking sets are cleared for the next tick
+
+This prevents issues where multiple players jumping in the same tick could cause double velocity.
+
+### Ground Detection
+
+Forced jumps are only applied if the player is on the ground (SharedJumpHandler.java:160-163):
+```java
+// Only apply if player is on the ground (prevent air stacking)
+if (!player.isOnGround()) {
+    return;
+}
+```
+
+This prevents players from gaining infinite upward velocity by jumping repeatedly in mid-air.
+
+### Velocity Synchronization
+
+The forced jump applies the same mechanics as a natural jump (SharedJumpHandler.java:166-173):
+- Invokes `player.jump()` for vanilla jump behavior
+- Triggers exhaustion, statistics, and jump sounds
+- Sends velocity packet to client for smooth synchronization
+
+## Implementation Details
+
+### Code Reference
+
+Jump tracking system (SharedJumpHandler.java:21-86):
+```java
+// Track players who jumped naturally in the current tick
+private static final Set<UUID> jumpersThisTick = new HashSet<>();
+
+// Track players who have been forced to jump this tick
+private static final Set<UUID> forcedJumpersThisTick = new HashSet<>();
+
+public static void onPlayerJump(ServerPlayerEntity player) {
+    // Add to jumpers set and defer processing
+    jumpersThisTick.add(player.getUuid());
+}
+```
+
+Tick-end processing (SharedJumpHandler.java:92-154):
+```java
+public static void processJumpsAtTickEnd(MinecraftServer server) {
+    // Force all non-jumping players to jump
+    for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
+        if (jumpersThisTick.contains(player.getUuid())) continue;
+        if (forcedJumpersThisTick.contains(player.getUuid())) continue;
+        
+        applyForceJump(player);
+        forcedJumpersThisTick.add(player.getUuid());
+    }
+}
+```
+
+### State Management
+
+The handler tracks several tick counters (SharedJumpHandler.java:29-33):
+- `lastCollectedTick`: Last tick where jumps were collected
+- `lastProcessedTick`: Last tick where jumps were processed
+- `processingJumps`: Flag to prevent recursive processing
+
+This ensures jumps are only processed once per tick and prevents clearing tracking data prematurely.
+
+## Strategy Guide
+
+### Safe Exploration
+
+<Tip>
+**Movement Best Practices:**
+1. Walk instead of sprint-jumping when possible
+2. Build guard rails along all bridges and platforms
+3. Use crouch-walking near ledges (prevents forced jumps from moving you)
+4. Keep water buckets in hotbar at all times
+5. One player should stay stationary while others move
+</Tip>
+
+### Building Adaptations
+
+**Modify your building strategy:**
+- Make bridges 3+ blocks wide instead of 1-2
+- Build walls along the sides of bridges
+- Create safety platforms below dangerous areas
+- Use scaffolding for vertical movement (more forgiving)
+- Avoid parkour-style gaps between platforms
+
+### Combat Tactics
+
+**Fighting with Shared Jumping:**
+- Use shields and blocking instead of dodging
+- Fight in enclosed spaces (prevents fall damage)
+- Coordinate who engages mobs
+- One player kites while others shoot from safety
+- Avoid cliff-edge combat entirely
+
+## Manhunt Mode Interaction
+
+When combined with Manhunt Mode:
+- Only **Runners** share jump mechanics
+- Hunters jump independently with vanilla mechanics
+- Hunters can exploit this to force Runners into dangerous situations
+- Runners must coordinate even more carefully
+
+## Related Modes
+
+<CardGroup cols={2}>
+  <Card title="Shared Potions" icon="flask" href="/modes/shared-potions">
+    Another shared mechanic modifier
+  </Card>
+  
+  <Card title="Manhunt Mode" icon="crosshairs" href="/modes/manhunt">
+    Only affects Runners, not Hunters
+  </Card>
+  
+  <Card title="Synced Inventory" icon="box" href="/modes/synced-inventory">
+    Shared inventory management
+  </Card>
+</CardGroup>
+
+## Known Issues
+
+The shared jumping system handles several edge cases (SharedJumpHandler.java:65-75):
+- Clears tracking sets between ticks only after processing completes
+- Prevents double-counting if called during processing
+- Handles tick advancement edge cases gracefully
+
+<Info>
+If you experience issues with double jumps or missed jumps, check the server logs for debug messages (SharedJumpHandler.java:84-86, 140-143).
+</Info>

@@ -1,0 +1,126 @@
+---
+title: /runinfo Command
+description: Display current run state, timer, and shared statistics
+---
+
+The `/runinfo` command displays detailed information about the current speedrun session, including game state, elapsed time, and shared health/hunger statistics.
+
+## Syntax
+
+```
+/runinfo
+```
+
+<ParamField path="No parameters" type="void">
+  This command takes no parameters
+</ParamField>
+
+## Permissions
+
+- **Permission Level**: 0 (All players)
+- **Can be used by**: Players and console
+- **Operator required**: No
+
+## Behavior
+
+When executed, the `/runinfo` command displays:
+
+1. **State**: Current game state (e.g., `RUNNING`, `LOBBY`, `GAME_OVER`)
+2. **Time**: Formatted elapsed time (HH:MM:SS or MM:SS)
+3. **Health**: Current shared health value
+4. **Hunger**: Current shared hunger value
+
+## Output Format
+
+The command outputs a single formatted message:
+
+```
+[Soul Link] State: <STATE> | Time: <TIME> | Health: <HEALTH> | Hunger: <HUNGER>
+```
+
+## Examples
+
+<CodeGroup>
+```minecraft Active Run
+/runinfo
+> [Soul Link] State: RUNNING | Time: 15:42 | Health: 17.5 | Hunger: 14
+```
+
+```minecraft Lobby
+/runinfo
+> [Soul Link] State: LOBBY | Time: 00:00 | Health: 20.0 | Hunger: 20
+```
+
+```minecraft Game Over
+/runinfo
+> [Soul Link] State: GAME_OVER | Time: 23:15 | Health: 0.0 | Hunger: 8
+```
+</CodeGroup>
+
+## Output Fields
+
+<ResponseField name="State" type="string">
+  The current game state:
+  - `LOBBY` - Waiting for run to start
+  - `RUNNING` - Run is active
+  - `GAME_OVER` - Run has ended
+  - `PAUSED` - Run is paused (if applicable)
+</ResponseField>
+
+<ResponseField name="Time" type="string">
+  Formatted elapsed time since run started:
+  - Format: `MM:SS` for runs under 1 hour
+  - Format: `HH:MM:SS` for runs over 1 hour
+  - Shows `00:00` when no run is active
+</ResponseField>
+
+<ResponseField name="Health" type="float">
+  Current shared health value:
+  - Range: 0.0 to 20.0
+  - Displayed with one decimal place (e.g., `17.5`)
+  - Represents half-hearts (20.0 = 10 full hearts)
+</ResponseField>
+
+<ResponseField name="Hunger" type="integer">
+  Current shared hunger value:
+  - Range: 0 to 20
+  - Represents half-drumsticks (20 = 10 full drumsticks)
+</ResponseField>
+
+## Error Messages
+
+<ResponseField name="Run manager not initialized" type="error">
+  The mod failed to initialize properly.
+  
+  **Solution**: Restart the server or check logs for initialization errors.
+</ResponseField>
+
+## Use Cases
+
+### During Speedrun
+- Quick check of current run status
+- Monitoring shared health/hunger without opening inventory
+- Checking elapsed time
+
+### Debugging
+- Verifying run state
+- Confirming timer is running
+- Checking shared stat synchronization
+
+### Spectating
+- Observers can check run progress
+- Streamers can display run info
+
+## Source Code Reference
+
+Implemented in `CommandRegistry.java:118-153`
+
+Retrieves data from:
+- `RunManager.getGameState()` - Current state
+- `RunManager.getFormattedTime()` - Elapsed time
+- `SharedStatsHandler.getSharedHealth()` - Health value
+- `SharedStatsHandler.getSharedHunger()` - Hunger value
+
+<Tip>
+  Use `/runinfo` to quickly check your run status without interrupting gameplay. Bind it to a keybind for even faster access.
+</Tip>
